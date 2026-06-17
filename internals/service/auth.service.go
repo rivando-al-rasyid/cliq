@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"log"
 	"time"
@@ -65,7 +66,7 @@ func (a *AuthService) Login(ctx context.Context, user dto.LoginRequest) (string,
 		ctx,
 		login.ID.String(),
 		token,
-		model.TokenTypeRefresh,
+		model.TokenTypeAccess,
 		expiresAt,
 	); err != nil {
 		return "", err
@@ -79,9 +80,12 @@ func (a *AuthService) ResetPassword(ctx context.Context, user dto.ResetPasswordR
 	if err != nil {
 		return "", err
 	}
-	token := rand.Text()
+	token, err := generateResetToken(32)
+	if err != nil {
+		return "", err
+	}
 
-	expiresAt := time.Now().Add(5 * time.Minute)
+	expiresAt := time.Now().Add(pkg.ResetTokenExpiry)
 	if err := a.authRepo.SaveToken(
 		ctx,
 		login.ID.String(),
@@ -155,4 +159,12 @@ func (a *AuthService) Logout(ctx context.Context, rawToken, email string) error 
 		log.Println("cache evict error on logout:", err) // non-fatal
 	}
 	return nil
+}
+
+func generateResetToken(byteLength int) (string, error) {
+	b := make([]byte, byteLength)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
