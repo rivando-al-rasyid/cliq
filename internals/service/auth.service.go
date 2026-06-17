@@ -17,7 +17,6 @@ import (
 type AuthRepo interface {
 	Register(ctx context.Context, email, password string) (model.User, error)
 	Login(ctx context.Context, email string) (model.User, error)
-	GetUserPin(ctx context.Context, email string) (model.UserPin, error)
 	GetUserByResetToken(ctx context.Context, rawToken string) (model.User, error)
 	SaveToken(ctx context.Context, userID, rawToken string, tokenType model.TokenType, expiresAt time.Time) error
 	RevokeToken(ctx context.Context, rawToken string) error
@@ -154,26 +153,6 @@ func (a *AuthService) Logout(ctx context.Context, rawToken, email string) error 
 	rkey := "vando:user:" + email
 	if err := cache.DelFromCache(ctx, a.rdb, rkey); err != nil {
 		log.Println("cache evict error on logout:", err) // non-fatal
-	}
-	return nil
-}
-
-func (a *AuthService) GetUserPin(ctx context.Context, email string) (model.UserPin, error) {
-	return a.authRepo.GetUserPin(ctx, email)
-}
-
-func (a *AuthService) VerifyPin(ctx context.Context, email, rawPin string) error {
-	pin, err := a.authRepo.GetUserPin(ctx, email)
-	if err != nil {
-		return err
-	}
-	if pin.PinHash == nil || len(*pin.PinHash) == 0 {
-		return errors.New("pin not set")
-	}
-	var hc pkg.HashConfig
-	hc.UseRecommended()
-	if err := hc.Compare(rawPin, *pin.PinHash); err != nil {
-		return errors.New("invalid pin")
 	}
 	return nil
 }

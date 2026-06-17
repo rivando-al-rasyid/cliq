@@ -26,7 +26,6 @@ func NewSuccessNoData(message string) Response {
 func NewError(message, errDetail string) Response {
 	return Response{
 		Message: message,
-		Data:    nil,
 		Success: false,
 		Error:   errDetail,
 	}

@@ -255,69 +255,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/pin/verify": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Validates the transaction PIN for the authenticated user.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Authentication"
-                ],
-                "summary": "Verify transaction PIN",
-                "parameters": [
-                    {
-                        "description": "PIN to verify",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.VerifyPinRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/auth/register": {
             "post": {
                 "description": "Creates a new user account along with a profile, wallet, and PIN record.",
@@ -555,75 +492,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/profile/change/pin": {
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "First-time setup: provide only pin_hash. Changing existing PIN: provide old_pin + pin_hash.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profile"
-                ],
-                "summary": "Update user secondary authorization pin",
-                "parameters": [
-                    {
-                        "description": "PIN update payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.SetPinRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/dto.Response"
                         }
@@ -964,26 +832,9 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.SetPinRequest": {
-            "type": "object",
-            "required": [
-                "pin_hash"
-            ],
-            "properties": {
-                "old_pin": {
-                    "type": "string"
-                },
-                "pin_hash": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.UserInfoResponse": {
             "type": "object",
             "properties": {
-                "current_balance": {
-                    "type": "integer"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -998,12 +849,6 @@ const docTemplate = `{
                 },
                 "photo": {
                     "type": "string"
-                },
-                "pin_hash": {
-                    "type": "string"
-                },
-                "wallet_id": {
-                    "type": "string"
                 }
             }
         },
@@ -1014,17 +859,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.VerifyPinRequest": {
-            "type": "object",
-            "required": [
-                "pin"
-            ],
-            "properties": {
-                "pin": {
                     "type": "string"
                 }
             }

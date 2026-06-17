@@ -13,7 +13,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/google/uuid"
 	"github.com/rivando-al-rasyid/cliq/internals/config"
 	"github.com/rivando-al-rasyid/cliq/internals/dto"
 	"github.com/rivando-al-rasyid/cliq/internals/pkg"
@@ -150,46 +149,6 @@ func (p *ProfileController) EditProfile(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dto.NewSuccessNoData("Profile successfully updated"))
 }
 
-// EditPin godoc
-// @Summary      Update user secondary authorization pin
-// @Description  First-time setup: provide only pin_hash. Changing existing PIN: provide old_pin + pin_hash.
-// @Tags         Profile
-// @Accept       json
-// @Produce      json
-// @Security		BearerAuth
-// @Param        body           body      dto.SetPinRequest  true  "PIN update payload"
-// @Success      200            {object}  dto.Response{data=object}
-// @Failure      400            {object}  dto.Response{error}
-// @Failure      401            {object}  dto.Response{error}
-// @Failure      500            {object}  dto.Response{error}
-// @Router       /profile/change/pin [PATCH]
-func (p *ProfileController) EditPin(ctx *gin.Context) {
-	claims, exists := ctx.Get("claims")
-	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
-		return
-	}
-	email := claims.(pkg.Claims).Email
-
-	var body dto.SetPinRequest
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request body", err.Error()))
-		return
-	}
-
-	_, err := p.profileservice.EditPinWithAuth(ctx.Request.Context(), email, body.OldPin, *body.PinHash)
-	if err != nil {
-		if err.Error() == "old pin is required" || err.Error() == "invalid old pin" {
-			ctx.JSON(http.StatusUnauthorized, dto.NewError("Failed to update PIN", err.Error()))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to update PIN", err.Error()))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, dto.NewSuccessNoData("PIN successfully updated"))
-}
-
 // EditPassword godoc
 // @Summary      Modify security entry password credentials
 // @Description  Modifies internal account validation strings. Requires old confirmation verification strings.
@@ -251,25 +210,18 @@ func (p *ProfileController) GetUserInfo(ctx *gin.Context) {
 	claimsTyped := claims.(pkg.Claims)
 	email := claimsTyped.Email
 
-	profile, balance, err := p.profileservice.GetUserInfo(ctx.Request.Context(), email)
+	p.profileservice.GetUserInfo(ctx.Request.Context(), email)
+	profile, err := p.profileservice.GetUserInfo(ctx.Request.Context(), email)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to fetch user info", "Internal server error"))
 		return
 	}
 
-	walletID := profile.UserID.String()
-	if profile.WalletID != uuid.Nil {
-		walletID = profile.WalletID.String()
-	}
-
 	ctx.JSON(http.StatusOK, dto.NewSuccess("User info successfully retrieved", dto.UserInfoResponse{
-		ID:             claimsTyped.ID.String(),
-		Email:          email,
-		FullName:       profile.FullName,
-		Phone:          profile.Phone,
-		Photo:          profile.Photo,
-		CurrentBalance: balance,
-		WalletID:       walletID,
-		PinHash:        profile.PinHash,
+		ID:       claimsTyped.ID.String(),
+		Email:    email,
+		FullName: profile.FullName,
+		Phone:    profile.Phone,
+		Photo:    profile.Photo,
 	}))
 }

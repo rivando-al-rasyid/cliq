@@ -80,19 +80,8 @@ definitions:
       message:
         type: string
     type: object
-  dto.SetPinRequest:
-    properties:
-      old_pin:
-        type: string
-      pin_hash:
-        type: string
-    required:
-    - pin_hash
-    type: object
   dto.UserInfoResponse:
     properties:
-      current_balance:
-        type: integer
       email:
         type: string
       full_name:
@@ -103,10 +92,6 @@ definitions:
         type: string
       photo:
         type: string
-      pin_hash:
-        type: string
-      wallet_id:
-        type: string
     type: object
   dto.UserResponse:
     properties:
@@ -114,13 +99,6 @@ definitions:
         type: string
       id:
         type: string
-    type: object
-  dto.VerifyPinRequest:
-    properties:
-      pin:
-        type: string
-    required:
-    - pin
     type: object
 host: localhost:8080
 info:
@@ -271,43 +249,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Get PIN status
-      tags:
-      - Authentication
-  /auth/pin/verify:
-    post:
-      consumes:
-      - application/json
-      description: Validates the transaction PIN for the authenticated user.
-      parameters:
-      - description: PIN to verify
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.VerifyPinRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/dto.Response'
-            - properties:
-                data:
-                  type: object
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.Response'
-      security:
-      - BearerAuth: []
-      summary: Verify transaction PIN
       tags:
       - Authentication
   /auth/register:
@@ -465,48 +406,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Get user profile details
-      tags:
-      - Profile
-  /profile/change/pin:
-    patch:
-      consumes:
-      - application/json
-      description: 'First-time setup: provide only pin_hash. Changing existing PIN:
-        provide old_pin + pin_hash.'
-      parameters:
-      - description: PIN update payload
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.SetPinRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/dto.Response'
-            - properties:
-                data:
-                  type: object
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/dto.Response'
-      security:
-      - BearerAuth: []
-      summary: Update user secondary authorization pin
       tags:
       - Profile
   /profile/edit:

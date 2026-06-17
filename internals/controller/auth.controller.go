@@ -154,40 +154,6 @@ func (a *AuthController) GetPIN(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dto.NewSuccess("PIN successfully retrieved", pin.PinHash))
 }
 
-// VerifyPIN godoc
-// @Summary      Verify transaction PIN
-// @Description  Validates the transaction PIN for the authenticated user.
-// @Tags         Authentication
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        body  body      dto.VerifyPinRequest  true  "PIN to verify"
-// @Success      200   {object}  dto.Response{data=object}
-// @Failure      400   {object}  dto.Response{error}
-// @Failure      401   {object}  dto.Response{error}
-// @Router       /auth/pin/verify [post]
-func (a *AuthController) VerifyPIN(ctx *gin.Context) {
-	claims, exists := ctx.Get("claims")
-	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
-		return
-	}
-	email := claims.(pkg.Claims).Email
-
-	var body dto.VerifyPinRequest
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request body", err.Error()))
-		return
-	}
-
-	if err := a.authservice.VerifyPin(ctx.Request.Context(), email, body.Pin); err != nil {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Invalid PIN", err.Error()))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, dto.NewSuccessNoData("PIN verified successfully"))
-}
-
 // ResetPassword godoc
 // @Summary      Request a password reset token
 // @Description  Looks up the account by email and stores a short-lived PASSWORD_RESET token (5 min). Deliver this token to the user via email or SMS, then exchange it at POST /auth/reset/confirm.
