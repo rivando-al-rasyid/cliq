@@ -9,21 +9,34 @@ import (
 )
 
 func ConnectPsql() (*pgxpool.Pool, error) {
-	values := make([]any, 0, 5)
-	values = append(values, os.Getenv("DB_USER"))
-	values = append(values, os.Getenv("DB_PASS"))
-	values = append(values, os.Getenv("DB_HOST"))
-	values = append(values, os.Getenv("DB_PORT"))
-	values = append(values, os.Getenv("DB_NAME"))
-	// dbUser := os.Getenv("DB_USER")
-	// dbPass := os.Getenv("DB_PASS")
-	// dbHost := os.Getenv("DB_HOST")
-	// dbPort := os.Getenv("DB_PORT")
-	// dbName := os.Getenv("DB_NAME")
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable", values...)
-	pgc, _ := pgxpool.New(context.Background(), connStr)
-	return pgc, pgc.Ping(context.Background())
-}
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASS")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbName := os.Getenv("DB_NAME")
 
-// db url / connection string
-// postgresql://USER:PASS@HOST:PORT/DBNAME?sslmode=disable
+	if dbUser == "" || dbPass == "" || dbHost == "" || dbPort == "" || dbName == "" {
+		return nil, fmt.Errorf("database environment variables are not set properly")
+	}
+
+	connStr := fmt.Sprintf(
+		"postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		dbUser,
+		dbPass,
+		dbHost,
+		dbPort,
+		dbName,
+	)
+
+	pgc, err := pgxpool.New(context.Background(), connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create database pool: %w", err)
+	}
+
+	if err := pgc.Ping(context.Background()); err != nil {
+		pgc.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return pgc, nil
+}

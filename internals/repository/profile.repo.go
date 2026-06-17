@@ -139,10 +139,9 @@ func (p *ProfileRepo) GetUserInfo(ctx context.Context, email string) (model.Prof
             p.photo,
        FROM profiles p
         JOIN users u ON p.user_id = u.id
-        LEFT JOIN user_pins up ON p.user_id = up.user_id
         LEFT JOIN wallets w ON w.user_id = u.id
         WHERE u.email = $1
-        GROUP BY p.full_name, p.phone, p.photo, up.pin_hash`, email,
+        GROUP BY p.full_name, p.phone, p.photo`, email,
 	).Scan(&profile.FullName, &profile.Phone, &profile.Photo)
 
 	if err != nil {

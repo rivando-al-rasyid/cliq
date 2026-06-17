@@ -22,11 +22,6 @@ import (
 // @name                        Authorization
 // @description                 Type "Bearer" followed by a space and your JWT. Example: "Bearer eyJhbGci..."
 func main() {
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Fatalf("Error loading env. \ncause: %s", err.Error())
-	// }
-	// inisialisasi
-	// gin.New()
 	app := gin.Default()
 	// connect ke db
 	db, err := config.ConnectPsql()
@@ -44,9 +39,6 @@ func main() {
 	log.Println("Redis Connected")
 	// install router
 	router.MainRouter(app, db, rc)
-	// run
-	// addr := fmt.Sprintf("%s:%s", os.Getenv("APP_HOST"), os.Getenv("APP_PORT"))
-	// serverAddr := fmt.Sprintf("%s:%s", os.Getenv("APP_HOST"), os.Getenv("APP_PORT"))
 
 	if err := app.Run("0.0.0.0:8080"); err != nil {
 		log.Fatalf("Failed to start server %v", err)
