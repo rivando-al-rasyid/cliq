@@ -26,16 +26,16 @@ func NewAuthController(authservice *service.AuthService) *AuthController {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dto.RegisterRequest  true  "Registration credentials"
-// @Success      201   {object}  dto.Response{data=dto.UserResponse}
-// @Failure      400   {object}  dto.Response{error}
-// @Failure      409   {object}  dto.Response{error}
-// @Failure      500   {object}  dto.Response{error}
+// @Success      201   {object}  dto.Response
+// @Failure      400   {object}  dto.Response
+// @Failure      409   {object}  dto.Response
+// @Failure      500   {object}  dto.Response
 // @Router       /auth/register [post]
 func (a *AuthController) Register(ctx *gin.Context) {
 	var body dto.RegisterRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		log.Printf("[AuthController.Register] bind error: %v\n", err)
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", "Please ensure your input matches the required format"))
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
 		return
 	}
 
@@ -43,12 +43,10 @@ func (a *AuthController) Register(ctx *gin.Context) {
 	if err != nil {
 		log.Printf("[AuthController.Register] service error: %v\n", err)
 		status := http.StatusInternalServerError
-		errDetail := "Internal server error"
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") || strings.Contains(strings.ToLower(err.Error()), "unique") {
 			status = http.StatusConflict
-			errDetail = "Email already exists"
 		}
-		ctx.JSON(status, dto.NewError("Registration failed", errDetail))
+		ctx.JSON(status, dto.NewError("Registration failed", err))
 		return
 	}
 
@@ -62,22 +60,22 @@ func (a *AuthController) Register(ctx *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dto.LoginRequest  true  "Login credentials"
-// @Success      200   {object}  dto.Response{data=string}
-// @Failure      400   {object}  dto.Response{error}
-// @Failure      401   {object}  dto.Response{error}
+// @Success      200   {object}  dto.Response
+// @Failure      400   {object}  dto.Response
+// @Failure      401   {object}  dto.Response
 // @Router       /auth/login [post]
 func (a *AuthController) Login(ctx *gin.Context) {
 	var body dto.LoginRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		log.Printf("[AuthController.Login] bind error: %v\n", err)
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", "Please ensure your input matches the required format"))
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
 		return
 	}
 
 	token, err := a.authservice.Login(ctx.Request.Context(), body)
 	if err != nil {
 		log.Printf("[AuthController.Login] service error: %v\n", err)
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Login failed", "Incorrect email or password"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Login failed", err))
 		return
 	}
 
@@ -91,27 +89,27 @@ func (a *AuthController) Login(ctx *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200  {object}  dto.Response{data=object}
-// @Failure      401  {object}  dto.Response{error}
-// @Failure      500  {object}  dto.Response{error}
+// @Success      200  {object}  dto.Response
+// @Failure      401  {object}  dto.Response
+// @Failure      500  {object}  dto.Response
 // @Router       /auth/logout [post]
 func (a *AuthController) Logout(ctx *gin.Context) {
 	claimsRaw, exists := ctx.Get("claims")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
 		return
 	}
 	email := claimsRaw.(pkg.Claims).Email
 
 	rawToken, exists := ctx.Get("raw_token")
 	if !exists {
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Logout failed", "raw token not found in context"))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Logout failed", nil))
 		return
 	}
 
 	if err := a.authservice.Logout(ctx.Request.Context(), rawToken.(string), email); err != nil {
 		log.Printf("[AuthController.Logout] service error: %v\n", err)
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Logout failed", "Internal server error"))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Logout failed", err))
 		return
 	}
 
@@ -125,23 +123,23 @@ func (a *AuthController) Logout(ctx *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dto.ResetPasswordRequest  true  "Registered email address"
-// @Success      201   {object}  dto.Response{data=string}
-// @Failure      400   {object}  dto.Response{error}
-// @Failure      404   {object}  dto.Response{error}
-// @Failure      500   {object}  dto.Response{error}
+// @Success      201   {object}  dto.Response
+// @Failure      400   {object}  dto.Response
+// @Failure      404   {object}  dto.Response
+// @Failure      500   {object}  dto.Response
 // @Router       /auth/reset [post]
 func (a *AuthController) ResetPassword(ctx *gin.Context) {
 	var body dto.ResetPasswordRequest
 
 	if err := ctx.ShouldBindBodyWithJSON(&body); err != nil {
 		log.Printf("[AuthController.ResetPassword] bind error: %v\n", err)
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", "Please ensure your input matches the required format"))
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
 		return
 	}
 	token, err := a.authservice.ResetPassword(ctx.Request.Context(), body)
 	if err != nil {
 		log.Printf("[AuthController.ResetPassword] service error: %v\n", err)
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Reset password failed", "Internal server error"))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Reset password failed", err))
 		return
 	}
 
@@ -155,17 +153,17 @@ func (a *AuthController) ResetPassword(ctx *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dto.ConfirmResetPassword  true  "Reset token (from email/SMS)"
-// @Success      200   {object}  dto.Response{data=string}
-// @Failure      400   {object}  dto.Response{error}
-// @Failure      401   {object}  dto.Response{error}
-// @Failure      500   {object}  dto.Response{error}
+// @Success      200   {object}  dto.Response
+// @Failure      400   {object}  dto.Response
+// @Failure      401   {object}  dto.Response
+// @Failure      500   {object}  dto.Response
 // @Router       /auth/reset/confirm [post]
 func (a *AuthController) ConfirmResetPassword(ctx *gin.Context) {
 	var body dto.ConfirmResetPassword
 
 	if err := ctx.ShouldBindBodyWithJSON(&body); err != nil {
 		log.Printf("[AuthController.ConfirmResetPassword] bind error: %v\n", err)
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", "Please ensure your input matches the required format"))
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
 		return
 	}
 
@@ -173,12 +171,10 @@ func (a *AuthController) ConfirmResetPassword(ctx *gin.Context) {
 	if err != nil {
 		log.Printf("[AuthController.ConfirmResetPassword] service error: %v\n", err)
 		status := http.StatusInternalServerError
-		errDetail := "Internal server error"
 		if err.Error() == "invalid or expired reset token" {
 			status = http.StatusUnauthorized
-			errDetail = err.Error()
 		}
-		ctx.JSON(status, dto.NewError("Confirm reset failed", errDetail))
+		ctx.JSON(status, dto.NewError("Confirm reset failed", err))
 		return
 	}
 
@@ -193,15 +189,15 @@ func (a *AuthController) ConfirmResetPassword(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      dto.ChangeAndPasswordRequest  true  "New password"
-// @Success      200   {object}  dto.Response{data=object}
-// @Failure      400   {object}  dto.Response{error}
-// @Failure      401   {object}  dto.Response{error}
-// @Failure      500   {object}  dto.Response{error}
+// @Success      200   {object}  dto.Response
+// @Failure      400   {object}  dto.Response
+// @Failure      401   {object}  dto.Response
+// @Failure      500   {object}  dto.Response
 // @Router       /auth/change-password [post]
 func (a *AuthController) ChangePassword(ctx *gin.Context) {
 	claimsRaw, exists := ctx.Get("claims")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
 		return
 	}
 	claims := claimsRaw.(pkg.Claims)
@@ -209,13 +205,13 @@ func (a *AuthController) ChangePassword(ctx *gin.Context) {
 	var body dto.ChangeAndPasswordRequest
 	if err := ctx.ShouldBindBodyWithJSON(&body); err != nil {
 		log.Printf("[AuthController.ChangePassword] bind error: %v\n", err)
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", "Please ensure your input matches the required format"))
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
 		return
 	}
 
 	if err := a.authservice.ChangeResetPassword(ctx.Request.Context(), claims.ID.String(), body.NewPassword); err != nil {
 		log.Printf("[AuthController.ChangePassword] service error: %v\n", err)
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Change password failed", "Internal server error"))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Change password failed", err))
 		return
 	}
 

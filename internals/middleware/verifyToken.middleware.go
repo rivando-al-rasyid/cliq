@@ -15,35 +15,51 @@ import (
 	"github.com/rivando-al-rasyid/cliq/internals/repository"
 )
 
-// extractAndVerifyBearer is a shared helper that:
-//  1. Reads the Authorization header and validates the "Bearer <token>" format.
-//  2. Verifies the JWT signature and expiry via pkg.Claims.VerifyJWT.
-//
-// On success it returns the raw token string and the parsed claims.
-// On failure it writes an appropriate JSON error to ctx and returns a non-nil error
-// so callers can simply do `if err != nil { return }`.
 func extractAndVerifyBearer(ctx *gin.Context, logTag string) (string, pkg.Claims, error) {
 	bearerToken := ctx.GetHeader("Authorization")
 	if bearerToken == "" {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing Authorization header"))
-		return "", pkg.Claims{}, errors.New("missing header")
+		err := errors.New("missing authorization header")
+
+		ctx.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			dto.NewError("Unauthorized", err),
+		)
+
+		return "", pkg.Claims{}, err
 	}
 
-	parts := strings.Split(bearerToken, " ")
+	parts := strings.Fields(bearerToken)
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Invalid token format, use: Bearer <token>"))
-		return "", pkg.Claims{}, errors.New("invalid format")
+		err := errors.New("invalid token format, use: Bearer <token>")
+
+		ctx.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			dto.NewError("Unauthorized", err),
+		)
+
+		return "", pkg.Claims{}, err
 	}
+
 	rawToken := parts[1]
 
 	var claims pkg.Claims
 	if err := claims.VerifyJWT(rawToken); err != nil {
 		log.Printf("[%s] JWT error: %v", logTag, err)
+
 		if errors.Is(err, jwt.ErrTokenExpired) || errors.Is(err, jwt.ErrTokenInvalidIssuer) {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, dto.NewError("Unauthorized", err.Error()))
+			ctx.AbortWithStatusJSON(
+				http.StatusUnauthorized,
+				dto.NewError("Unauthorized", err),
+			)
+
 			return "", pkg.Claims{}, err
 		}
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, dto.NewError("Error", "Internal server error"))
+
+		ctx.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			dto.NewError("Unauthorized", errors.New("invalid token")),
+		)
+
 		return "", pkg.Claims{}, err
 	}
 
@@ -51,7 +67,7 @@ func extractAndVerifyBearer(ctx *gin.Context, logTag string) (string, pkg.Claims
 }
 
 // VerifyTokenWithDB validates the JWT signature and checks the tokens table
-// (token must exist, is_revoked = false, expires_at > now()).
+// token must exist, is_revoked = false, expires_at > now().
 func VerifyTokenWithDB(db *pgxpool.Pool) gin.HandlerFunc {
 	authRepo := repository.NewAuthRepo(db)
 
@@ -64,16 +80,30 @@ func VerifyTokenWithDB(db *pgxpool.Pool) gin.HandlerFunc {
 		valid, err := authRepo.IsTokenValid(context.Background(), rawToken)
 		if err != nil {
 			log.Println("[VerifyToken] DB token check error:", err)
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, dto.NewError("Error", "Internal server error"))
-			return
-		}
-		if !valid {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, dto.NewError("Token has been revoked or expired, please login again", "Token invalid"))
+
+			ctx.AbortWithStatusJSON(
+				http.StatusInternalServerError,
+				dto.NewError("Error", errors.New("internal server error")),
+			)
+
 			return
 		}
 
-		ctx.Set("claims", claims)
+		if !valid {
+			ctx.AbortWithStatusJSON(
+				http.StatusUnauthorized,
+				dto.NewError(
+					"Token has been revoked or expired, please login again",
+					errors.New("token invalid"),
+				),
+			)
+
+			return
+		}
+
+		ctx.Set("claims", &claims)
 		ctx.Set("raw_token", rawToken)
+
 		ctx.Next()
 	}
 }
@@ -90,11 +120,19 @@ func VerifyResetToken() gin.HandlerFunc {
 		}
 
 		if claims.Subject != pkg.ResetTokenSubject {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, dto.NewError("Forbidden", "This token cannot be used for this operation"))
+			ctx.AbortWithStatusJSON(
+				http.StatusForbidden,
+				dto.NewError(
+					"Forbidden",
+					errors.New("this token cannot be used for this operation"),
+				),
+			)
+
 			return
 		}
 
-		ctx.Set("claims", claims)
+		ctx.Set("claims", &claims)
+
 		ctx.Next()
 	}
 }

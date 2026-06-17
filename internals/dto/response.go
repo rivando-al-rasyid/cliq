@@ -2,9 +2,9 @@ package dto
 
 type Response struct {
 	Message string `json:"message"`
-	Data    any    `json:"data"`
+	Data    any    `json:"data,omitempty"` // omitempty prevents rendering null/empty values
 	Success bool   `json:"isSuccess"`
-	Error   string `json:"error"`
+	Error   string `json:"error,omitempty"` // omitempty hides it when empty
 }
 
 // NewSuccess builds a successful response with a payload.
@@ -13,20 +13,26 @@ func NewSuccess(message string, data any) Response {
 		Message: message,
 		Data:    data,
 		Success: true,
-		Error:   "",
 	}
 }
 
 // NewSuccessNoData builds a successful response without a payload.
 func NewSuccessNoData(message string) Response {
-	return NewSuccess(message, nil)
+	return Response{
+		Message: message,
+		Success: true,
+	}
 }
 
-// NewError builds a failed response.
-func NewError(message, errDetail string) Response {
+// NewError builds a failed response extracting string from native error interface.
+func NewError(message string, err error) Response {
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
 	return Response{
 		Message: message,
 		Success: false,
-		Error:   errDetail,
+		Error:   errStr,
 	}
 }

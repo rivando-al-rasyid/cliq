@@ -33,7 +33,7 @@ func NewProfileController(profileservice *service.ProfileService) *ProfileContro
 // @Tags         Profile
 // @Accept       json
 // @Produce      json
-// @Security		BearerAuth
+// @Security     BearerAuth
 // @Success      200            {object}  dto.Response{data=dto.ProfileResponse}
 // @Failure      401            {object}  dto.Response{error}
 // @Failure      404            {object}  dto.Response{error}
@@ -42,7 +42,7 @@ func NewProfileController(profileservice *service.ProfileService) *ProfileContro
 func (p *ProfileController) GetProfile(ctx *gin.Context) {
 	claims, exists := ctx.Get("claims")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing claims")))
 		return
 	}
 
@@ -50,10 +50,10 @@ func (p *ProfileController) GetProfile(ctx *gin.Context) {
 	profile, err := p.profileservice.GetProfile(ctx.Request.Context(), email)
 	if err != nil {
 		if err.Error() == "user profile not found" {
-			ctx.JSON(http.StatusNotFound, dto.NewError("Failed to fetch profile", "Profile not found"))
+			ctx.JSON(http.StatusNotFound, dto.NewError("Failed to fetch profile", errors.New("profile not found")))
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to fetch profile", "Internal server error"))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to fetch profile", errors.New("internal server error")))
 		return
 	}
 
@@ -64,32 +64,21 @@ func (p *ProfileController) GetProfile(ctx *gin.Context) {
 	}))
 }
 
-func (p *ProfileController) validateAndSavePhoto(ctx *gin.Context, photo *multipart.FileHeader, email string) (*string, error) {
-	if e := p.profileservice.ValidateUpload(2*config.MB, photo); e != nil {
-		log.Println(e.Error())
-		if errors.Is(e, config.ErrFileTooLarge) {
-			ctx.JSON(http.StatusUnprocessableEntity, dto.NewError("File too large", "Photo must be under 2MB"))
-			return nil, e
-		}
-		if errors.Is(e, config.ErrExtNotAllowed) {
-			ctx.JSON(http.StatusUnprocessableEntity, dto.NewError("Invalid file type", "Only .jpg, .jpeg, .png, .webp are allowed"))
-			return nil, e
-		}
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Error", "Internal server error"))
-		return nil, e
+// validateAndSavePhoto handles file validation and storage locally.
+func (p *ProfileController) validateAndSavePhoto(ctx *gin.Context, photo *multipart.FileHeader, email string) (string, error) {
+	if err := p.profileservice.ValidateUpload(2*config.MB, photo); err != nil {
+		return "", err
 	}
 
 	ext := path.Ext(photo.Filename)
 	filename := fmt.Sprintf("%s_photo_%d%s", strings.ToLower(strings.ReplaceAll(email, "@", "_")), time.Now().UnixNano(), ext)
 	dst := filepath.Join("public", "img", filename)
+
 	if err := ctx.SaveUploadedFile(photo, dst); err != nil {
-		log.Println("error: ", err.Error())
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Error", "Internal server error"))
-		return nil, err
+		return "", err
 	}
 
-	photoURL := fmt.Sprintf("/img/%s", filename)
-	return &photoURL, nil
+	return fmt.Sprintf("/img/%s", filename), nil
 }
 
 // EditProfile godoc
@@ -98,8 +87,7 @@ func (p *ProfileController) validateAndSavePhoto(ctx *gin.Context, photo *multip
 // @Tags         Profile
 // @Accept       multipart/form-data
 // @Produce      json
-// @Security		BearerAuth
-// @Security		BearerAuth
+// @Security     BearerAuth
 // @Param        full_name      formData  string  false "Updated full identity name representation"
 // @Param        phone          formData  string  false "Target telecommunications contact identity sequence"
 // @Param        photo          formData  file    false "Binary source file image attachment content"
@@ -112,15 +100,15 @@ func (p *ProfileController) validateAndSavePhoto(ctx *gin.Context, photo *multip
 func (p *ProfileController) EditProfile(ctx *gin.Context) {
 	claims, exists := ctx.Get("claims")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing claims")))
 		return
 	}
 	email := claims.(pkg.Claims).Email
 
 	var body dto.UpdateProfileRequest
 	if err := ctx.ShouldBindWith(&body, binding.FormMultipart); err != nil {
-		log.Println("error: ", err.Error())
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request body", err.Error()))
+		log.Println("binding error: ", err.Error())
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request body", err))
 		return
 	}
 
@@ -134,15 +122,25 @@ func (p *ProfileController) EditProfile(ctx *gin.Context) {
 	if body.Photo != nil {
 		photoURL, err := p.validateAndSavePhoto(ctx, body.Photo, email)
 		if err != nil {
+			log.Println("file handling error: ", err.Error())
+			if errors.Is(err, config.ErrFileTooLarge) {
+				ctx.JSON(http.StatusUnprocessableEntity, dto.NewError("File too large", errors.New("photo must be under 2MB")))
+				return
+			}
+			if errors.Is(err, config.ErrExtNotAllowed) {
+				ctx.JSON(http.StatusUnprocessableEntity, dto.NewError("Invalid file type", errors.New("only .jpg, .jpeg, .png, .webp are allowed")))
+				return
+			}
+			ctx.JSON(http.StatusInternalServerError, dto.NewError("Error", errors.New("internal server error")))
 			return
 		}
 		updates["photo"] = photoURL
 	}
 
-	_, err := p.profileservice.EditProfile(ctx, email, updates)
+	_, err := p.profileservice.EditProfile(ctx.Request.Context(), email, updates)
 	if err != nil {
-		log.Println("error: ", err.Error())
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Error", "Internal server error"))
+		log.Println("service error: ", err.Error())
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Error", errors.New("internal server error")))
 		return
 	}
 
@@ -155,7 +153,7 @@ func (p *ProfileController) EditProfile(ctx *gin.Context) {
 // @Tags         Profile
 // @Accept       json
 // @Produce      json
-// @Security		BearerAuth
+// @Security     BearerAuth
 // @Param        body           body      dto.ChangePasswordRequest  true  "Password structure swap payload"
 // @Success      200            {object}  dto.Response{data=object}
 // @Failure      400            {object}  dto.Response{error}
@@ -163,27 +161,26 @@ func (p *ProfileController) EditProfile(ctx *gin.Context) {
 // @Failure      500            {object}  dto.Response{error}
 // @Router       /profile/password [PATCH]
 func (p *ProfileController) EditPassword(ctx *gin.Context) {
-
 	claims, exists := ctx.Get("claims")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing claims")))
 		return
 	}
 	email := claims.(pkg.Claims).Email
 
 	var body dto.ChangePasswordRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request body", err.Error()))
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request body", err))
 		return
 	}
 
 	_, err := p.profileservice.EditPassword(ctx.Request.Context(), email, body.OldPassword, body.Password)
 	if err != nil {
 		if err.Error() == "old password is incorrect" {
-			ctx.JSON(http.StatusUnauthorized, dto.NewError("Failed to update password", "Old password is incorrect"))
+			ctx.JSON(http.StatusUnauthorized, dto.NewError("Failed to update password", errors.New("old password is incorrect")))
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to update password", err.Error()))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to update password", errors.New("internal server error")))
 		return
 	}
 
@@ -196,7 +193,7 @@ func (p *ProfileController) EditPassword(ctx *gin.Context) {
 // @Tags         Profile
 // @Accept       json
 // @Produce      json
-// @Security		BearerAuth
+// @Security     BearerAuth
 // @Success      200            {object}  dto.Response{data=dto.UserInfoResponse}
 // @Failure      401            {object}  dto.Response{error}
 // @Failure      500            {object}  dto.Response{error}
@@ -204,16 +201,15 @@ func (p *ProfileController) EditPassword(ctx *gin.Context) {
 func (p *ProfileController) GetUserInfo(ctx *gin.Context) {
 	claims, exists := ctx.Get("claims")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", "Missing claims"))
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing claims")))
 		return
 	}
 	claimsTyped := claims.(pkg.Claims)
 	email := claimsTyped.Email
 
-	p.profileservice.GetUserInfo(ctx.Request.Context(), email)
 	profile, err := p.profileservice.GetUserInfo(ctx.Request.Context(), email)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to fetch user info", "Internal server error"))
+		ctx.JSON(http.StatusInternalServerError, dto.NewError("Failed to fetch user info", errors.New("internal server error")))
 		return
 	}
 

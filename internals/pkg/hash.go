@@ -19,7 +19,6 @@ type HashConfig struct {
 	SaltLen uint32
 }
 
-
 func (h *HashConfig) UseRecommended() {
 	// based on OWASP min recommendation (May 2023)
 	h.Memory = 64 * 1024 // 64 MiB
@@ -31,10 +30,12 @@ func (h *HashConfig) UseRecommended() {
 
 func (h *HashConfig) genSalt() []byte {
 	salt := make([]byte, h.SaltLen)
-	// for range h.SaltLen {
-	// 	salt = append(salt, rand.Intn())
-	// }
-	rand.Read(salt)
+
+	_, err := rand.Read(salt)
+	if err != nil {
+		return make([]byte, 0)
+
+	}
 	return salt
 }
 
