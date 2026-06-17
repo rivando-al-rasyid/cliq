@@ -1,0 +1,1398 @@
+basePath: /
+definitions:
+  dto.ChangeAndPasswordRequest:
+    properties:
+      new_password:
+        example: NewP@ssw0rd!
+        minLength: 8
+        type: string
+    required:
+    - new_password
+    type: object
+  dto.ChangePasswordRequest:
+    properties:
+      old_password:
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - old_password
+    - password
+    type: object
+  dto.ChartPointResponse:
+    properties:
+      expense:
+        type: integer
+      income:
+        type: integer
+      label:
+        type: string
+    type: object
+  dto.ConfirmResetPassword:
+    properties:
+      token:
+        example: abc123xyz
+        type: string
+    required:
+    - token
+    type: object
+  dto.ExpenseRequest:
+    properties:
+      admin_fee:
+        minimum: 0
+        type: integer
+      amount:
+        type: integer
+      category:
+        maxLength: 50
+        type: string
+      merchant_name:
+        maxLength: 100
+        type: string
+      note:
+        maxLength: 255
+        type: string
+      pin:
+        type: string
+      wallet_id:
+        type: string
+    required:
+    - amount
+    - pin
+    - wallet_id
+    type: object
+  dto.ExpenseResponse:
+    properties:
+      admin_fee:
+        type: integer
+      amount:
+        type: integer
+      category:
+        type: string
+      created_at:
+        type: string
+      merchant_name:
+        type: string
+      status:
+        type: string
+      transaction_id:
+        type: string
+      wallet_id:
+        type: string
+    type: object
+  dto.HistoryItem:
+    properties:
+      admin_fee:
+        type: integer
+      amount:
+        type: integer
+      created_at:
+        type: string
+      direction:
+        description: '"income" | "expense"'
+        type: string
+      id:
+        type: string
+      note:
+        type: string
+      payment_method:
+        description: only for topups
+        type: string
+      source:
+        description: '"topup" | "transaction"'
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      type:
+        description: TransactionType or "TOPUP"
+        type: string
+      wallet_id:
+        type: string
+      wallet_label:
+        type: string
+    type: object
+  dto.HistoryListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.HistoryItem'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: P@ssw0rd123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.ProfileResponse:
+    properties:
+      full_name:
+        type: string
+      phone:
+        type: string
+      photo:
+        type: string
+    type: object
+  dto.ReceiverListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.ReceiverResult'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  dto.ReceiverResult:
+    properties:
+      email:
+        type: string
+      full_name:
+        type: string
+      phone:
+        type: string
+      photo:
+        type: string
+      user_id:
+        type: string
+      wallet_id:
+        type: string
+      wallet_label:
+        type: string
+    type: object
+  dto.RecipientInfo:
+    properties:
+      amount:
+        type: integer
+      wallet_id:
+        type: string
+    type: object
+  dto.RegisterRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: P@ssw0rd123
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.ResetPasswordRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
+  dto.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      isSuccess:
+        type: boolean
+      message:
+        type: string
+    type: object
+  dto.SetPinRequest:
+    properties:
+      old_pin:
+        type: string
+      pin_hash:
+        type: string
+    required:
+    - pin_hash
+    type: object
+  dto.SummaryResponse:
+    properties:
+      current_balance:
+        type: integer
+      total_expense:
+        type: integer
+      total_income:
+        type: integer
+      wallets:
+        items:
+          $ref: '#/definitions/dto.WalletItem'
+        type: array
+    type: object
+  dto.TopupRequest:
+    properties:
+      amount:
+        type: integer
+      payment_method:
+        enum:
+        - BRI
+        - BCA
+        - DANA
+        - GOPAY
+        - OVO
+        type: string
+      wallet_id:
+        type: string
+    required:
+    - amount
+    - payment_method
+    - wallet_id
+    type: object
+  dto.TopupResponse:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        type: string
+      external_reference:
+        type: string
+      id:
+        type: string
+      payment_method:
+        type: string
+      status:
+        type: string
+      wallet_id:
+        type: string
+    type: object
+  dto.TransactionReportResponse:
+    properties:
+      points:
+        items:
+          $ref: '#/definitions/dto.ChartPointResponse'
+        type: array
+      range:
+        type: string
+      type:
+        type: string
+    type: object
+  dto.TransactionResponse:
+    properties:
+      admin_fee:
+        type: integer
+      amount:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: string
+      idempotency_key:
+        type: string
+      note:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+      wallet_id:
+        type: string
+    type: object
+  dto.TransferRequest:
+    properties:
+      amount:
+        type: integer
+      note:
+        maxLength: 255
+        type: string
+      pin:
+        type: string
+      recipient_wallet_id:
+        type: string
+      sender_wallet_id:
+        type: string
+    required:
+    - amount
+    - pin
+    - recipient_wallet_id
+    - sender_wallet_id
+    type: object
+  dto.TransferResponse:
+    properties:
+      recipient_info:
+        $ref: '#/definitions/dto.RecipientInfo'
+      sender_transaction:
+        $ref: '#/definitions/dto.TransactionResponse'
+      transfer_code:
+        type: string
+    type: object
+  dto.UserInfoResponse:
+    properties:
+      current_balance:
+        type: integer
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      phone:
+        type: string
+      photo:
+        type: string
+      pin_hash:
+        type: string
+      wallet_id:
+        type: string
+    type: object
+  dto.UserResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+  dto.VerifyPinRequest:
+    properties:
+      pin:
+        type: string
+    required:
+    - pin
+    type: object
+  dto.WalletItem:
+    properties:
+      balance:
+        type: integer
+      id:
+        type: string
+      label:
+        type: string
+    type: object
+  dto.WithdrawalRequest:
+    properties:
+      account_holder:
+        maxLength: 100
+        minLength: 2
+        type: string
+      account_number:
+        maxLength: 20
+        minLength: 6
+        type: string
+      amount:
+        type: integer
+      bank_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      pin:
+        type: string
+      wallet_id:
+        type: string
+    required:
+    - account_holder
+    - account_number
+    - amount
+    - bank_name
+    - pin
+    - wallet_id
+    type: object
+  dto.WithdrawalResponse:
+    properties:
+      account_holder:
+        type: string
+      account_number:
+        type: string
+      admin_fee:
+        type: integer
+      amount:
+        type: integer
+      bank_name:
+        type: string
+      created_at:
+        type: string
+      status:
+        type: string
+      transaction_id:
+        type: string
+      wallet_id:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Backend Vanwallet  using Gin
+  license:
+    name: MIT
+  title: Vanwallet
+  version: "1.0"
+paths:
+  /auth/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Replaces the user's password. Requires the short-lived JWT returned
+        by POST /auth/reset/confirm as a Bearer token (sub must be "password-reset").
+      parameters:
+      - description: New password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangeAndPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Set a new password using a password-reset JWT
+      tags:
+      - Authentication
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Verifies email and password, then issues a signed JWT access token.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+      summary: Login
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes the current access token, invalidating the session.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - Authentication
+  /auth/pin:
+    get:
+      consumes:
+      - application/json
+      description: Returns whether a transaction PIN has been set for the authenticated
+        user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Get PIN status
+      tags:
+      - Authentication
+  /auth/pin/verify:
+    post:
+      consumes:
+      - application/json
+      description: Validates the transaction PIN for the authenticated user.
+      parameters:
+      - description: PIN to verify
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerifyPinRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Verify transaction PIN
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account along with a profile, wallet, and PIN
+        record.
+      parameters:
+      - description: Registration credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      summary: Register a new user
+      tags:
+      - Authentication
+  /auth/reset:
+    post:
+      consumes:
+      - application/json
+      description: Looks up the account by email and stores a short-lived PASSWORD_RESET
+        token (5 min). Deliver this token to the user via email or SMS, then exchange
+        it at POST /auth/reset/confirm.
+      parameters:
+      - description: Registered email address
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      summary: Request a password reset token
+      tags:
+      - Authentication
+  /auth/reset/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Validates the opaque PASSWORD_RESET token issued by POST /auth/reset,
+        revokes it (single-use), and returns a short-lived JWT (10 min, sub="password-reset").
+        Use this JWT as a Bearer token when calling POST /auth/change-password.
+      parameters:
+      - description: Reset token (from email/SMS)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ConfirmResetPassword'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      summary: Confirm reset token and obtain a password-reset JWT
+      tags:
+      - Authentication
+  /profile:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves current authentication details' full name, telephone
+        connection code, and user avatar endpoint.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ProfileResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Get user profile details
+      tags:
+      - Profile
+  /profile/change/pin:
+    patch:
+      consumes:
+      - application/json
+      description: 'First-time setup: provide only pin_hash. Changing existing PIN:
+        provide old_pin + pin_hash.'
+      parameters:
+      - description: PIN update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetPinRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Update user secondary authorization pin
+      tags:
+      - Profile
+  /profile/edit:
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Updates system details including full name text, phone data info,
+        and multipart image form attachments.
+      parameters:
+      - description: Updated full identity name representation
+        in: formData
+        name: full_name
+        type: string
+      - description: Target telecommunications contact identity sequence
+        in: formData
+        name: phone
+        type: string
+      - description: Binary source file image attachment content
+        in: formData
+        name: photo
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      - BearerAuth: []
+      summary: Modify active user profile records
+      tags:
+      - Profile
+  /profile/info:
+    get:
+      consumes:
+      - application/json
+      description: Assembles structured systemic components including identities,
+        security states, and financial metrics.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserInfoResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Get unified system user statistics context
+      tags:
+      - Profile
+  /profile/password:
+    patch:
+      consumes:
+      - application/json
+      description: Modifies internal account validation strings. Requires old confirmation
+        verification strings.
+      parameters:
+      - description: Password structure swap payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Modify security entry password credentials
+      tags:
+      - Profile
+  /transaction/expense:
+    post:
+      consumes:
+      - application/json
+      description: Commits real-time commercial transactional operations by updating
+        categorical metadata indexes.
+      parameters:
+      - description: Expense context descriptors body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ExpenseResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Log an outward operational purchase
+      tags:
+      - Transactions
+  /transaction/history:
+    get:
+      consumes:
+      - application/json
+      description: Returns the unified user transaction history feed. Supports pagination,
+        filters, and simple search.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by wallet UUID
+        in: query
+        name: wallet_id
+        type: string
+      - description: Filter source
+        enum:
+        - transaction
+        - topup
+        in: query
+        name: source
+        type: string
+      - description: Filter type
+        enum:
+        - TOPUP
+        - EXPENSE
+        - WITHDRAWAL
+        - TRANSFER_IN
+        - TRANSFER_OUT
+        in: query
+        name: type
+        type: string
+      - description: Filter status
+        enum:
+        - PENDING
+        - SUCCESS
+        - FAILED
+        - CANCELLED
+        in: query
+        name: status
+        type: string
+      - description: Filter direction
+        enum:
+        - income
+        - expense
+        in: query
+        name: direction
+        type: string
+      - description: Start date YYYY-MM-DD
+        in: query
+        name: start_date
+        type: string
+      - description: End date YYYY-MM-DD
+        in: query
+        name: end_date
+        type: string
+      - description: Search text
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.HistoryListResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Get paginated transaction history
+      tags:
+      - Transactions
+  /transaction/receiver:
+    get:
+      consumes:
+      - application/json
+      description: Returns all available receiver profiles. Supports optional search
+        filtering by full name or phone.
+      parameters:
+      - description: Optional search keyword for name, email, phone, or wallet label
+        in: query
+        name: q
+        type: string
+      - default: 1
+        description: Page target number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Data slice size boundary
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ReceiverListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: List or search system profiles for transactions
+      tags:
+      - Transactions
+  /transaction/report:
+    get:
+      consumes:
+      - application/json
+      description: Fetches graphical data for income/expenses across specified temporal
+        intervals.
+      parameters:
+      - default: 7days
+        description: Time span filter
+        enum:
+        - 7days
+        - 30days
+        in: query
+        name: range
+        type: string
+      - default: both
+        description: Financial stream categorization
+        enum:
+        - income
+        - expense
+        - both
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TransactionReportResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Get chart report analytics
+      tags:
+      - Transactions
+  /transaction/summary:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves current balance, total income, total expense, and related
+        wallets summary.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.SummaryResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Get user financial summary
+      tags:
+      - Transactions
+  /transaction/topup:
+    post:
+      consumes:
+      - application/json
+      description: Spawns an internal pending top-up structure targeting an active
+        wallet instance.
+      parameters:
+      - description: Deposit payload specs
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TopupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TopupResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Initiate financial deposit pipeline
+      tags:
+      - Transactions
+  /transaction/topup/{id}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Validates internal states to switch a top-up balance allocation
+        from pending to active.
+      parameters:
+      - description: Top-up entity UUID pointer
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TopupResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Finalize operational top-up event
+      tags:
+      - Transactions
+  /transaction/transfer:
+    post:
+      consumes:
+      - application/json
+      description: Executes nuclear ledger balanced migrations across separate user
+        wallets inside the application.
+      parameters:
+      - description: Transfer structural definition payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TransferRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TransferResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Inter-wallet peer asset migration
+      tags:
+      - Transactions
+  /transaction/withdrawal:
+    post:
+      consumes:
+      - application/json
+      description: Deducts assets out of the e-wallet matrix into external physical
+        banking infrastructure.
+      parameters:
+      - description: Withdrawal parameters details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.WithdrawalRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.WithdrawalResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.Response'
+      security:
+      - BearerAuth: []
+      summary: Execute capital exit pipeline
+      tags:
+      - Transactions
+securityDefinitions:
+  BearerAuth:
+    description: 'Type "Bearer" followed by a space and your JWT. Example: "Bearer
+      eyJhbGci..."'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
