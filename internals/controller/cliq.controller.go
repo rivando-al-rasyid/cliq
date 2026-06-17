@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rivando-al-rasyid/cliq/internals/dto"
@@ -79,4 +80,42 @@ func (c *CliqController) CreateSlug(ctx *gin.Context) {
 			"slug": slug,
 		}),
 	)
+}
+
+// RedirectBySlug godoc
+// @Summary      Redirect short link
+// @Description  Redirects to the original URL based on the provided slug.
+// @Tags         cliq
+// @Produce      json
+// @Param        slug  path      string  true  "Short link slug"
+// @Success      302   {string}  string  "Redirects to original URL"
+// @Failure      404   {object}  dto.Response "Slug not found"
+// @Failure      500   {object}  dto.Response "Internal server error"
+// @Router       /{slug} [get]
+func (c *CliqController) RedirectBySlug(ctx *gin.Context) {
+	slug := ctx.Param("slug")
+
+	originLink, err := c.CliqService.RedirectBySlug(ctx.Request.Context(), slug)
+	if err != nil {
+		if errors.Is(err, service.ErrLinkNotFound) {
+			ctx.JSON(
+				http.StatusNotFound,
+				dto.NewError("Link not found", err),
+			)
+			return
+		}
+
+		log.Printf("[CliqController.RedirectBySlug] service error: %v\n", err)
+		ctx.JSON(
+			http.StatusInternalServerError,
+			dto.NewError("Redirect failed", err),
+		)
+		return
+	}
+
+	if !strings.HasPrefix(originLink, "http://") && !strings.HasPrefix(originLink, "https://") {
+		originLink = "https://" + originLink
+	}
+
+	ctx.Redirect(http.StatusFound, originLink)
 }

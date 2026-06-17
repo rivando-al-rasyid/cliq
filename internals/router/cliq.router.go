@@ -14,8 +14,8 @@ func CliqRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	linkRepo := repository.NewCliqRepo(db)
 	linkServ := service.NewCliqService(linkRepo, rdb)
 	linkCont := controller.NewCliqController(linkServ)
-
+	router.GET("/:slug", linkCont.RedirectBySlug)
 	cliq := router.Group("/link", middleware.VerifyTokenWithDB(db))
-
 	cliq.POST("create", linkCont.CreateSlug)
+
 }
