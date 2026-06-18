@@ -8,9 +8,9 @@ import (
 	"github.com/rivando-al-rasyid/cliq-backend/internals/router"
 )
 
-// @title						Vanwallet
+// @title						Cliq
 // @version						1.0
-// @description					Backend Vanwallet  using Gin
+// @description					Backend Cliq  using Gin
 
 // @license.name				MIT
 

@@ -244,16 +244,6 @@ PATCH /profile/edit
 PATCH /profile/change/password
 ```
 
-### Shortlink Routes
-
-```txt
-POST /cliq
-GET  /cliq
-GET  /cliq/:id
-PATCH /cliq/:id
-DELETE /cliq/:id
-```
-
 ### Redirect Route
 
 ```txt
