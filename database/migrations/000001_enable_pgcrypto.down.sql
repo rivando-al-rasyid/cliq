@@ -1,0 +1,1 @@
+-- pgcrypto is intentionally not dropped because it may be shared by other schemas.

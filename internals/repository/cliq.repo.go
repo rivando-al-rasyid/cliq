@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rivando-al-rasyid/cliq/internals/model"
 )
 
 type CliqRepo struct {
@@ -23,8 +24,10 @@ func (c *CliqRepo) CreateSlug(
 	userID uuid.UUID,
 	originLink string,
 	slug string,
-) error {
-	_, err := c.db.Exec(ctx,
+) (model.Link, error) {
+	var link model.Link
+
+	err := c.db.QueryRow(ctx,
 		`
 		INSERT INTO links (
 			user_id,
@@ -32,16 +35,17 @@ func (c *CliqRepo) CreateSlug(
 			slug
 		)
 		VALUES ($1, $2, $3)
+		RETURNING id, user_id, origin_link, slug, created_at
 		`,
 		userID,
 		originLink,
 		slug,
-	)
+	).Scan(&link.ID, &link.UserID, &link.OriginLink, &link.Slug, &link.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("create slug: %w", err)
+		return model.Link{}, fmt.Errorf("create slug: %w", err)
 	}
 
-	return nil
+	return link, nil
 }
 
 func (c *CliqRepo) GetOriginLinkBySlug(ctx context.Context, slug string) (string, error) {
@@ -66,4 +70,75 @@ func (c *CliqRepo) GetOriginLinkBySlug(ctx context.Context, slug string) (string
 	}
 
 	return originLink, nil
+}
+
+func (c *CliqRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error) {
+	var total int
+	if err := c.db.QueryRow(ctx,
+		`
+		SELECT COUNT(*)
+		FROM links
+		WHERE user_id = $1
+		  AND is_deleted = false
+		`,
+		userID,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count links by user: %w", err)
+	}
+
+	rows, err := c.db.Query(ctx,
+		`
+		SELECT id, user_id, origin_link, slug, created_at
+		FROM links
+		WHERE user_id = $1
+		  AND is_deleted = false
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+		`,
+		userID,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list links by user: %w", err)
+	}
+	defer rows.Close()
+
+	links := make([]model.Link, 0)
+	for rows.Next() {
+		var link model.Link
+		if err := rows.Scan(&link.ID, &link.UserID, &link.OriginLink, &link.Slug, &link.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("scan link: %w", err)
+		}
+		links = append(links, link)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate links: %w", err)
+	}
+
+	return links, total, nil
+}
+
+func (c *CliqRepo) SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) error {
+	result, err := c.db.Exec(ctx,
+		`
+		UPDATE links
+		SET is_deleted = true
+		WHERE id = $1
+		  AND user_id = $2
+		  AND is_deleted = false
+		`,
+		linkID,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("soft delete link by id: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
 }

@@ -1,0 +1,5 @@
+CREATE TYPE token_type AS ENUM (
+    'ACCESS',
+    'PASSWORD_RESET',
+    'EMAIL_VERIFICATION'
+);
