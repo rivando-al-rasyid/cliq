@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rivando-al-rasyid/cliq/internals/dto"
-	"github.com/rivando-al-rasyid/cliq/internals/pkg"
-	"github.com/rivando-al-rasyid/cliq/internals/repository"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/pkg"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/repository"
 )
 
 func extractAndVerifyToken(ctx *gin.Context, logTag string, allowCookie bool) (string, pkg.Claims, error) {

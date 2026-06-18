@@ -3,10 +3,10 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rivando-al-rasyid/cliq/internals/controller"
-	"github.com/rivando-al-rasyid/cliq/internals/middleware"
-	"github.com/rivando-al-rasyid/cliq/internals/repository"
-	"github.com/rivando-al-rasyid/cliq/internals/service"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/controller"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/middleware"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/repository"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
 )
 
 func ProfileRouter(router *gin.Engine, db *pgxpool.Pool) {

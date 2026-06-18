@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
-	"github.com/rivando-al-rasyid/cliq/internals/dto"
-	"github.com/rivando-al-rasyid/cliq/internals/model"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/model"
 )
 
 var (

@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rivando-al-rasyid/cliq/internals/dto"
-	"github.com/rivando-al-rasyid/cliq/internals/pkg"
-	"github.com/rivando-al-rasyid/cliq/internals/service"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/pkg"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
 )
 
 type AuthController struct {

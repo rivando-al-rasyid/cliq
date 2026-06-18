@@ -1,4 +1,4 @@
-module github.com/rivando-al-rasyid/cliq
+module github.com/rivando-al-rasyid/cliq-backend
 
 go 1.26.3
 

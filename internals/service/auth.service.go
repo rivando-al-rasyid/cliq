@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"github.com/rivando-al-rasyid/cliq/internals/cache"
-	"github.com/rivando-al-rasyid/cliq/internals/dto"
-	"github.com/rivando-al-rasyid/cliq/internals/model"
-	"github.com/rivando-al-rasyid/cliq/internals/pkg"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/cache"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/model"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/pkg"
 )
 
 type AuthRepo interface {

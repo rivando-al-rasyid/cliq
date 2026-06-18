@@ -1,10 +1,16 @@
-# VanWallet Backend
+# Cliq Backend
 
-VanWallet Backend is a REST API built with **Go**, **Gin**, **PostgreSQL**, and **Redis**. It handles authentication, profile management, wallet transactions, top-up, transfer, withdrawal, expense tracking, transaction history, receiver search, dashboard summary, and reports.
+Cliq Backend is a REST API for a shortlink / URL shortener application built with **Go**, **Gin**, **PostgreSQL**, and **Redis**.
+
+It handles authentication, shortlink creation, custom slug management, link redirection, profile management, password reset, and protected user routes.
+
+> Cliq is a learning and portfolio project.
+
+---
 
 ## Tech Stack
 
-* Go `1.26.3`
+* Go
 * Gin
 * PostgreSQL
 * Redis
@@ -14,46 +20,23 @@ VanWallet Backend is a REST API built with **Go**, **Gin**, **PostgreSQL**, and 
 * golang-migrate
 * Swagger
 
-## Go Version
-
-This project uses:
-
-```txt
-go 1.26.3
-```
-
-Make sure your local machine, Docker image, and CI environment use Go `1.26.3`.
-
-Check your installed Go version:
-
-```bash
-go version
-```
-
-Expected result:
-
-```txt
-go version go1.26.3 linux/amd64
-```
-
-If you use Docker, make sure the backend `Dockerfile` uses a matching Go image:
-
-```dockerfile
-FROM golang:1.26.3-alpine AS builder
-```
+---
 
 ## Project Structure
 
 ```txt
-backend/
+cliq/
 ├── database/
 │   ├── migrations/
 │   └── seed.sql
 ├── docs/
 ├── internals/
+│   ├── config/
 │   ├── controller/
+│   ├── dto/
 │   ├── middleware/
 │   ├── model/
+│   ├── pkg/
 │   ├── repository/
 │   ├── router/
 │   └── service/
@@ -65,20 +48,24 @@ backend/
 └── env.example
 ```
 
+---
+
 ## Requirements
 
-For local development:
+### Local Development
 
-* Go `1.26.3`
+* Go
 * PostgreSQL
 * Redis
 * golang-migrate
 * Make
 
-For Docker development:
+### Docker Development
 
 * Docker
 * Docker Compose
+
+---
 
 ## Environment Variables
 
@@ -91,9 +78,11 @@ cp env.example .env
 Example `.env`:
 
 ```env
-DB_USER=vanwallet
+APP_PORT=8080
+
+DB_USER=cliq
 DB_PASS=secret
-DB_NAME=vanwallet_db
+DB_NAME=cliq_db
 DB_HOST=postgres
 DB_PORT=5432
 
@@ -103,49 +92,58 @@ RDB_USER=
 RDB_PASS=
 
 JWT_SECRET=change_me_to_a_long_random_string
-JWT_ISSUER=vanwallet
+JWT_ISSUER=cliq
 ```
 
 For local development without Docker:
 
 ```env
 DB_HOST=localhost
-DB_PORT=5432
-
 RDB_HOST=localhost
-RDB_PORT=6379
 ```
+
+Do not commit `.env` to Git.
+
+---
 
 ## Run with Docker
 
-From the backend folder:
+From the project root:
 
 ```bash
 docker compose up -d --build
 ```
 
-This starts the backend services, including:
+This starts:
 
 * Go backend API
 * PostgreSQL
 * Redis
 * Migration service
 
-Stop all containers:
+Check running containers:
+
+```bash
+docker ps
+```
+
+Stop containers:
 
 ```bash
 docker compose down
 ```
 
-Stop and remove volumes:
+Stop containers and remove volumes:
 
 ```bash
 docker compose down -v
 ```
 
+---
+
 ## Run Locally
 
-Install Go dependencies:
+Install dependencies:
 
 ```bash
 go mod download
@@ -153,7 +151,7 @@ go mod download
 
 Make sure PostgreSQL and Redis are running.
 
-Run database migration:
+Run database migrations:
 
 ```bash
 make migrate-up
@@ -168,14 +166,152 @@ make seed
 Start the backend:
 
 ```bash
-go run main.go
+go run .
 ```
 
-The backend runs on:
+If your entry point is inside `cmd`, use:
+
+```bash
+go run ./cmd
+```
+
+The backend runs at:
 
 ```txt
 http://localhost:8080
 ```
+
+---
+
+## API Base URL
+
+Direct backend access:
+
+```txt
+http://localhost:8080
+```
+
+Frontend access through Nginx proxy:
+
+```txt
+/api
+```
+
+Recommended frontend environment variable:
+
+```env
+VITE_API_BASE_URL=/api
+```
+
+---
+
+## Authentication
+
+Protected endpoints require a Bearer token:
+
+```txt
+Authorization: Bearer <token>
+```
+
+Example:
+
+```bash
+curl "http://localhost:8080/profile" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## API Routes
+
+### Auth Routes
+
+```txt
+POST /auth/register
+POST /auth/login
+POST /auth/reset
+POST /auth/reset/confirm
+POST /auth/change-password
+POST /auth/logout
+```
+
+### Profile Routes
+
+```txt
+GET   /profile
+GET   /profile/info
+PATCH /profile/edit
+PATCH /profile/change/password
+```
+
+### Shortlink Routes
+
+```txt
+POST /cliq
+GET  /cliq
+GET  /cliq/:id
+PATCH /cliq/:id
+DELETE /cliq/:id
+```
+
+### Redirect Route
+
+```txt
+GET /:slug
+```
+
+The redirect route is used to open the original URL from a shortlink slug.
+
+Example:
+
+```txt
+GET /github
+```
+
+Redirects to the original link saved for the `github` slug.
+
+---
+
+## Shortlink Feature
+
+Cliq allows authenticated users to create shortlinks.
+
+A shortlink usually contains:
+
+* original URL
+* custom slug
+* generated short URL
+* owner user ID
+* created date
+* updated date
+
+Example request:
+
+```bash
+curl -X POST "http://localhost:8080/cliq" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "origin_link": "https://github.com/rivando-al-rasyid",
+    "slug": "github"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "message": "shortlink created successfully",
+  "data": {
+    "slug": "github",
+    "short_url": "http://localhost:8080/github",
+    "origin_link": "https://github.com/rivando-al-rasyid"
+  },
+  "isSuccess": true
+}
+```
+
+---
 
 ## Database Migration
 
@@ -209,6 +345,10 @@ Force migration version:
 make migrate-force VERSION=1
 ```
 
+Only force a migration version when you are sure about the current database state.
+
+---
+
 ## Seed Database
 
 Run seed:
@@ -223,292 +363,13 @@ Reset seed:
 make seed-reset
 ```
 
-The seed reset command truncates core tables and inserts seed data again.
+The reset command truncates core tables and inserts seed data again.
 
-## API Base URL
+Use this carefully because it removes existing development data.
 
-If accessed directly:
+---
 
-```txt
-http://localhost:8080
-```
-
-If accessed through frontend Nginx proxy:
-
-```txt
-/api
-```
-
-Recommended frontend API base:
-
-```env
-VITE_API_BASE_URL=/api
-```
-
-## Authentication
-
-Protected endpoints require a Bearer token:
-
-```txt
-Authorization: Bearer <token>
-```
-
-## Auth Routes
-
-```txt
-POST /auth/register
-POST /auth/login
-POST /auth/reset
-POST /auth/reset/confirm
-POST /auth/change-password
-POST /auth/logout
-GET  /auth/pin
-POST /auth/pin/verify
-```
-
-## Profile Routes
-
-```txt
-GET   /profile
-GET   /profile/info
-PATCH /profile/edit
-PATCH /profile/change/pin
-PATCH /profile/change/password
-```
-
-## Transaction Routes
-
-```txt
-GET   /transaction/summary
-GET   /transaction/report
-GET   /transaction/history
-GET   /transaction/receiver
-
-POST  /transaction/topup
-PATCH /transaction/topup/:id/confirm
-POST  /transaction/transfer
-POST  /transaction/withdrawal
-POST  /transaction/expense
-```
-
-## Transaction History
-
-Main endpoint:
-
-```txt
-GET /transaction/history
-```
-
-This endpoint is the main transaction feed for the frontend history page and dashboard graph.
-
-Supported query parameters:
-
-```txt
-page
-limit
-q
-source
-type
-status
-direction
-start_date
-end_date
-wallet_id
-```
-
-Example request:
-
-```bash
-curl "http://localhost:8080/transaction/history?page=1&limit=10&q=bca&status=SUCCESS" \
-  -H "Authorization: Bearer <token>"
-```
-
-Example response:
-
-```json
-{
-  "data": [],
-  "total": 25,
-  "page": 1,
-  "limit": 10,
-  "total_pages": 3
-}
-```
-
-### History Filter Examples
-
-Get first page:
-
-```txt
-GET /transaction/history?page=1&limit=10
-```
-
-Search transaction:
-
-```txt
-GET /transaction/history?page=1&limit=10&q=bca
-```
-
-Filter by status:
-
-```txt
-GET /transaction/history?page=1&limit=10&status=SUCCESS
-```
-
-Filter by direction:
-
-```txt
-GET /transaction/history?page=1&limit=10&direction=income
-GET /transaction/history?page=1&limit=10&direction=expense
-```
-
-Filter by transaction type:
-
-```txt
-GET /transaction/history?page=1&limit=10&type=TOPUP
-GET /transaction/history?page=1&limit=10&type=TRANSFER_IN
-GET /transaction/history?page=1&limit=10&type=TRANSFER_OUT
-GET /transaction/history?page=1&limit=10&type=WITHDRAWAL
-GET /transaction/history?page=1&limit=10&type=EXPENSE
-```
-
-Filter by date range:
-
-```txt
-GET /transaction/history?page=1&limit=10&start_date=2026-06-01&end_date=2026-06-30
-```
-
-## Receiver Search
-
-Main endpoint:
-
-```txt
-GET /transaction/receiver
-```
-
-This endpoint is used by the transfer page to show all available receiver users.
-
-Supported query parameters:
-
-```txt
-page
-limit
-q
-query
-```
-
-Example request:
-
-```bash
-curl "http://localhost:8080/transaction/receiver?page=1&limit=10&q=andi" \
-  -H "Authorization: Bearer <token>"
-```
-
-Example response:
-
-```json
-{
-  "data": [],
-  "total": 30,
-  "page": 1,
-  "limit": 10,
-  "total_pages": 3
-}
-```
-
-Search supports:
-
-```txt
-full_name
-email
-phone
-wallet_label
-wallet_id
-```
-
-### Receiver Examples
-
-Show all receiver users:
-
-```txt
-GET /transaction/receiver?page=1&limit=10
-```
-
-Search receiver:
-
-```txt
-GET /transaction/receiver?page=1&limit=10&q=andi
-```
-
-Alternative search query:
-
-```txt
-GET /transaction/receiver?page=1&limit=10&query=andi
-```
-
-## Transaction Actions
-
-### Top Up
-
-```txt
-POST /transaction/topup
-```
-
-Confirm top-up:
-
-```txt
-PATCH /transaction/topup/:id/confirm
-```
-
-### Transfer
-
-```txt
-POST /transaction/transfer
-```
-
-### Withdrawal
-
-```txt
-POST /transaction/withdrawal
-```
-
-### Expense
-
-```txt
-POST /transaction/expense
-```
-
-## Dashboard Summary
-
-```txt
-GET /transaction/summary
-```
-
-Used by the dashboard to show:
-
-* current balance
-* total income
-* total expense
-* wallet summary
-
-## Transaction Report
-
-```txt
-GET /transaction/report
-```
-
-Used for financial report data.
-
-The frontend dashboard chart mainly uses transaction history data so the graph can support:
-
-* 7 days
-* 14 days
-* 30 days
-* income filter
-* expense filter
-* all filter
-
-## Swagger
+## Swagger Documentation
 
 Swagger documentation is available at:
 
@@ -522,6 +383,8 @@ Example:
 http://localhost:8080/swagger/index.html
 ```
 
+---
+
 ## Useful Make Commands
 
 ```bash
@@ -534,6 +397,8 @@ make seed
 make seed-reset
 make print-db-url
 ```
+
+---
 
 ## Recommended Development Flow
 
@@ -567,40 +432,46 @@ Run tests:
 go test ./...
 ```
 
+---
+
 ## API Design Notes
 
-* `GET /transaction/history` is the main transaction list endpoint.
-* `GET /transaction/receiver` is the main receiver/user list endpoint for transfer.
-* Transaction creation endpoints should stay separate from transaction reading endpoints.
-* Avoid re-adding duplicate transaction list/detail routes unless they are really needed.
-* Keep pagination and filtering on list endpoints.
+* `POST /cliq` is used to create a new shortlink.
+* `GET /:slug` is used to redirect users to the original URL.
+* Slugs should be unique.
+* Protected routes should require JWT authentication.
+* Public redirect routes should not require authentication.
 * Keep sensitive values inside `.env`.
 * Do not commit `.env` to Git.
 
+---
+
 ## Security Notice
 
-VanWallet is a learning and portfolio project. It should not be used in production or for real financial transactions without a full security audit, compliance review, infrastructure hardening, monitoring, and proper financial/legal approval.
+Cliq is a learning and portfolio project.
 
 Before production use, review at minimum:
 
-* authentication and JWT security
-* password hashing
-* PIN handling
-* transaction validation
-* race condition protection
-* balance consistency
-* database transaction safety
-* input validation
-* rate limiting
-* logging and monitoring
+* Authentication and JWT security
+* Password hashing
+* Password reset token security
+* Slug validation
+* URL validation
+* Rate limiting
+* Abuse prevention
+* Redirect safety
+* Open redirect protection
+* Input validation
 * CORS policy
-* secret management
-* backup and recovery
-* financial compliance requirements
+* Logging and monitoring
+* Secret management
+* Backup and recovery
+
+---
 
 ## Common Issues
 
-### Database connection failed
+### Database Connection Failed
 
 Check:
 
@@ -612,7 +483,7 @@ DB_PASS
 DB_NAME
 ```
 
-If using Docker, the database host should usually be the Docker service name:
+If using Docker:
 
 ```env
 DB_HOST=postgres
@@ -624,7 +495,9 @@ If running locally:
 DB_HOST=localhost
 ```
 
-### Redis connection failed
+---
+
+### Redis Connection Failed
 
 Check:
 
@@ -647,7 +520,9 @@ If running locally:
 RDB_HOST=localhost
 ```
 
-### Migration dirty error
+---
+
+### Migration Dirty Error
 
 Check migration status:
 
@@ -667,17 +542,7 @@ Then run migration again:
 make migrate-up
 ```
 
-### Go version error
-
-This project uses Go `1.26.3`.
-
-Check your version:
-
-```bash
-go version
-```
-
-If the version is different, install Go `1.26.3` or use a matching Docker image.
+---
 
 ## License
 

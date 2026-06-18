@@ -6,9 +6,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/rivando-al-rasyid/cliq/internals/config"
-	"github.com/rivando-al-rasyid/cliq/internals/model"
-	"github.com/rivando-al-rasyid/cliq/internals/pkg"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/config"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/model"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/pkg"
 )
 
 type ProfileRepository interface {
