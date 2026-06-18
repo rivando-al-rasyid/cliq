@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rivando-al-rasyid/cliq/internals/model"
@@ -69,7 +70,7 @@ func (a *Authrepo) Login(ctx context.Context, email string) (model.User, error) 
 }
 
 // SaveToken inserts a new token row into the tokens table.
-func (a *Authrepo) SaveToken(ctx context.Context, userID, rawToken string, tokenType model.TokenType, expiresAt time.Time) error {
+func (a *Authrepo) SaveToken(ctx context.Context, userID uuid.UUID, rawToken string, tokenType model.TokenType, expiresAt time.Time) error {
 	_, err := a.db.Exec(ctx,
 		`INSERT INTO tokens (user_id, token, type, expires_at)
 		 VALUES ($1, $2, $3, $4)
@@ -145,7 +146,7 @@ func (a *Authrepo) GetUserByResetToken(ctx context.Context, rawToken string) (mo
 }
 
 // UpdatePassword sets a new hashed password for the given user ID.
-func (a *Authrepo) UpdatePassword(ctx context.Context, userID, hashedPassword string) error {
+func (a *Authrepo) UpdatePassword(ctx context.Context, userID uuid.UUID, hashedPassword string) error {
 	result, err := a.db.Exec(ctx,
 		`UPDATE users SET password = $1 ,updated_at = NOW() WHERE id = $2`,
 		hashedPassword, userID,

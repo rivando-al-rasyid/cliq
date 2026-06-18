@@ -8,6 +8,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rivando-al-rasyid/cliq/internals/cache"
 	"github.com/rivando-al-rasyid/cliq/internals/dto"
@@ -19,10 +20,15 @@ type AuthRepo interface {
 	Register(ctx context.Context, email, password string) (model.User, error)
 	Login(ctx context.Context, email string) (model.User, error)
 	GetUserByResetToken(ctx context.Context, rawToken string) (model.User, error)
-	SaveToken(ctx context.Context, userID, rawToken string, tokenType model.TokenType, expiresAt time.Time) error
+	SaveToken(ctx context.Context, userID uuid.UUID, rawToken string, tokenType model.TokenType, expiresAt time.Time) error
 	RevokeToken(ctx context.Context, rawToken string) error
 	IsTokenValid(ctx context.Context, rawToken string) (bool, error)
-	UpdatePassword(ctx context.Context, userID, hashedPassword string) error
+	UpdatePassword(ctx context.Context, userID uuid.UUID, hashedPassword string) error
+}
+
+type AuthSession struct {
+	Token string
+	User  dto.UserResponse
 }
 
 type AuthService struct {
@@ -45,34 +51,40 @@ func (a *AuthService) Register(ctx context.Context, user dto.RegisterRequest) (d
 	return dto.UserResponse{ID: result.ID, Email: result.Email}, nil
 }
 
-func (a *AuthService) Login(ctx context.Context, user dto.LoginRequest) (string, error) {
+func (a *AuthService) Login(ctx context.Context, user dto.LoginRequest) (AuthSession, error) {
 	login, err := a.getOrFetchUser(ctx, user.Email)
 	if err != nil {
-		return "", err
+		return AuthSession{}, err
 	}
 
 	var hc pkg.HashConfig
 	if err := hc.Compare(user.Password, login.Password); err != nil {
-		return "", err
+		return AuthSession{}, err
 	}
 
 	claims := pkg.NewClaims(login.ID, user.Email)
 	token, err := claims.GenJWT()
 	if err != nil {
-		return "", err
+		return AuthSession{}, err
 	}
 	expiresAt := time.Now().Add(pkg.AccessTokenExpiry)
 	if err := a.authRepo.SaveToken(
 		ctx,
-		login.ID.String(),
+		login.ID,
 		token,
 		model.TokenTypeAccess,
 		expiresAt,
 	); err != nil {
-		return "", err
+		return AuthSession{}, err
 	}
 
-	return token, nil
+	return AuthSession{
+		Token: token,
+		User: dto.UserResponse{
+			ID:    login.ID,
+			Email: user.Email,
+		},
+	}, nil
 }
 
 func (a *AuthService) ResetPassword(ctx context.Context, user dto.ResetPasswordRequest) (string, error) {
@@ -88,7 +100,7 @@ func (a *AuthService) ResetPassword(ctx context.Context, user dto.ResetPasswordR
 	expiresAt := time.Now().Add(pkg.ResetTokenExpiry)
 	if err := a.authRepo.SaveToken(
 		ctx,
-		login.ID.String(),
+		login.ID,
 		token,
 		model.TokenTypePasswordReset,
 		expiresAt,
@@ -119,7 +131,7 @@ func (a *AuthService) ConfirmResetPassword(ctx context.Context, user dto.Confirm
 // the password-reset JWT claims. The JWT was already validated (and the opaque
 // reset token already revoked) in ConfirmResetPassword, so no extra token check
 // is needed here.
-func (a *AuthService) ChangeResetPassword(ctx context.Context, userID, newPassword string) error {
+func (a *AuthService) ChangeResetPassword(ctx context.Context, userID uuid.UUID, newPassword string) error {
 	var hc pkg.HashConfig
 	hc.UseRecommended()
 	hashed := hc.GenHash(newPassword)

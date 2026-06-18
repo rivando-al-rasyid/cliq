@@ -55,7 +55,7 @@ func (a *AuthController) Register(ctx *gin.Context) {
 
 // Login godoc
 // @Summary      Login
-// @Description  Verifies email and password, then issues a signed JWT access token.
+// @Description  Verifies email and password, stores the access JWT in an HttpOnly cookie, and returns public user data.
 // @Tags         Authentication
 // @Accept       json
 // @Produce      json
@@ -72,19 +72,50 @@ func (a *AuthController) Login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := a.authservice.Login(ctx.Request.Context(), body)
+	session, err := a.authservice.Login(ctx.Request.Context(), body)
 	if err != nil {
 		log.Printf("[AuthController.Login] service error: %v\n", err)
 		ctx.JSON(http.StatusUnauthorized, dto.NewError("Login failed", err))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, dto.NewSuccess("Login successful", token))
+	pkg.SetAccessTokenCookie(ctx, session.Token)
+
+	ctx.JSON(http.StatusOK, dto.NewSuccess("Login successful", session.User))
+}
+
+// Me godoc
+// @Summary      Get current authenticated user
+// @Description  Returns the active user identity from the verified access cookie/token.
+// @Tags         Authentication
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  dto.Response
+// @Failure      401  {object}  dto.Response
+// @Router       /auth/me [get]
+func (a *AuthController) Me(ctx *gin.Context) {
+	userID, ok := pkg.CurrentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
+		return
+	}
+
+	email, ok := pkg.CurrentUserEmail(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, dto.NewSuccess("Authenticated user retrieved", dto.UserResponse{
+		ID:    userID,
+		Email: email,
+	}))
 }
 
 // Logout godoc
 // @Summary      Logout
-// @Description  Revokes the current access token, invalidating the session.
+// @Description  Revokes the current access token and clears the HttpOnly cookie.
 // @Tags         Authentication
 // @Accept       json
 // @Produce      json
@@ -94,25 +125,21 @@ func (a *AuthController) Login(ctx *gin.Context) {
 // @Failure      500  {object}  dto.Response
 // @Router       /auth/logout [post]
 func (a *AuthController) Logout(ctx *gin.Context) {
-	claimsRaw, exists := ctx.Get("claims")
-	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
-		return
-	}
-	claims, ok := claimsRaw.(*pkg.Claims)
+	defer pkg.ClearAccessTokenCookie(ctx)
+
+	email, ok := pkg.CurrentUserEmail(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
 		return
 	}
-	email := claims.Email
 
-	rawToken, exists := ctx.Get("raw_token")
-	if !exists {
+	rawToken, ok := pkg.RawTokenFromContext(ctx)
+	if !ok {
 		ctx.JSON(http.StatusInternalServerError, dto.NewError("Logout failed", nil))
 		return
 	}
 
-	if err := a.authservice.Logout(ctx.Request.Context(), rawToken.(string), email); err != nil {
+	if err := a.authservice.Logout(ctx.Request.Context(), rawToken, email); err != nil {
 		log.Printf("[AuthController.Logout] service error: %v\n", err)
 		ctx.JSON(http.StatusInternalServerError, dto.NewError("Logout failed", err))
 		return
@@ -200,12 +227,7 @@ func (a *AuthController) ConfirmResetPassword(ctx *gin.Context) {
 // @Failure      500   {object}  dto.Response
 // @Router       /auth/change-password [post]
 func (a *AuthController) ChangePassword(ctx *gin.Context) {
-	claimsRaw, exists := ctx.Get("claims")
-	if !exists {
-		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
-		return
-	}
-	claims, ok := claimsRaw.(*pkg.Claims)
+	userID, ok := pkg.CurrentUserID(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", nil))
 		return
@@ -218,7 +240,7 @@ func (a *AuthController) ChangePassword(ctx *gin.Context) {
 		return
 	}
 
-	if err := a.authservice.ChangeResetPassword(ctx.Request.Context(), claims.ID.String(), body.NewPassword); err != nil {
+	if err := a.authservice.ChangeResetPassword(ctx.Request.Context(), userID, body.NewPassword); err != nil {
 		log.Printf("[AuthController.ChangePassword] service error: %v\n", err)
 		ctx.JSON(http.StatusInternalServerError, dto.NewError("Change password failed", err))
 		return

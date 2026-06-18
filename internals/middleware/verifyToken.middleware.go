@@ -1,11 +1,9 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -15,11 +13,9 @@ import (
 	"github.com/rivando-al-rasyid/cliq/internals/repository"
 )
 
-func extractAndVerifyBearer(ctx *gin.Context, logTag string) (string, pkg.Claims, error) {
-	bearerToken := ctx.GetHeader("Authorization")
-	if bearerToken == "" {
-		err := errors.New("missing authorization header")
-
+func extractAndVerifyToken(ctx *gin.Context, logTag string, allowCookie bool) (string, pkg.Claims, error) {
+	rawToken, err := pkg.ExtractRequestToken(ctx, allowCookie)
+	if err != nil {
 		ctx.AbortWithStatusJSON(
 			http.StatusUnauthorized,
 			dto.NewError("Unauthorized", err),
@@ -28,22 +24,8 @@ func extractAndVerifyBearer(ctx *gin.Context, logTag string) (string, pkg.Claims
 		return "", pkg.Claims{}, err
 	}
 
-	parts := strings.Fields(bearerToken)
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		err := errors.New("invalid token format, use: Bearer <token>")
-
-		ctx.AbortWithStatusJSON(
-			http.StatusUnauthorized,
-			dto.NewError("Unauthorized", err),
-		)
-
-		return "", pkg.Claims{}, err
-	}
-
-	rawToken := parts[1]
-
-	var claims pkg.Claims
-	if err := claims.VerifyJWT(rawToken); err != nil {
+	claims, err := pkg.VerifyRawJWT(rawToken)
+	if err != nil {
 		log.Printf("[%s] JWT error: %v", logTag, err)
 
 		switch {
@@ -72,13 +54,14 @@ func extractAndVerifyBearer(ctx *gin.Context, logTag string) (string, pkg.Claims
 	return rawToken, claims, nil
 }
 
-// VerifyTokenWithDB validates normal access JWT and checks the tokens table.
-// Token must exist, is_revoked = false, expires_at > now().
-func VerifyTokenWithDB(db *pgxpool.Pool) gin.HandlerFunc {
+// AuthRequired validates normal access JWT and checks the tokens table.
+// The token can come from either Authorization: Bearer <token> or the
+// HttpOnly access_token cookie used by the React Router data-mode frontend.
+func AuthRequired(db *pgxpool.Pool) gin.HandlerFunc {
 	authRepo := repository.NewAuthRepo(db)
 
 	return func(ctx *gin.Context) {
-		rawToken, claims, err := extractAndVerifyBearer(ctx, "VerifyToken")
+		rawToken, claims, err := extractAndVerifyToken(ctx, "AuthRequired", true)
 		if err != nil {
 			return
 		}
@@ -95,9 +78,9 @@ func VerifyTokenWithDB(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		valid, err := authRepo.IsTokenValid(context.Background(), rawToken)
+		valid, err := authRepo.IsTokenValid(ctx.Request.Context(), rawToken)
 		if err != nil {
-			log.Println("[VerifyToken] DB token check error:", err)
+			log.Println("[AuthRequired] DB token check error:", err)
 
 			ctx.AbortWithStatusJSON(
 				http.StatusInternalServerError,
@@ -119,18 +102,18 @@ func VerifyTokenWithDB(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		ctx.Set("claims", &claims)
-		ctx.Set("raw_token", rawToken)
+		pkg.SetAuthContext(ctx, rawToken, claims)
 
 		ctx.Next()
 	}
 }
 
-// VerifyResetToken validates a JWT issued for reset password.
-// Reset JWTs are not stored in the tokens table, so no DB lookup is needed.
-func VerifyResetToken() gin.HandlerFunc {
+// PasswordResetRequired validates a JWT issued for reset password.
+// Reset JWTs should be sent explicitly through Authorization: Bearer <token>,
+// not the access_token cookie.
+func PasswordResetRequired() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		_, claims, err := extractAndVerifyBearer(ctx, "VerifyResetToken")
+		_, claims, err := extractAndVerifyToken(ctx, "PasswordResetRequired", false)
 		if err != nil {
 			return
 		}
@@ -147,8 +130,18 @@ func VerifyResetToken() gin.HandlerFunc {
 			return
 		}
 
-		ctx.Set("claims", &claims)
+		pkg.SetAuthContext(ctx, "", claims)
 
 		ctx.Next()
 	}
+}
+
+// VerifyTokenWithDB is kept for compatibility. Prefer AuthRequired in routers.
+func VerifyTokenWithDB(db *pgxpool.Pool) gin.HandlerFunc {
+	return AuthRequired(db)
+}
+
+// VerifyResetToken is kept for compatibility. Prefer PasswordResetRequired in routers.
+func VerifyResetToken() gin.HandlerFunc {
+	return PasswordResetRequired()
 }

@@ -3,8 +3,10 @@ package pkg
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -20,6 +22,11 @@ const AccessTokenSubject = "access"
 
 // ResetTokenSubject is the JWT "sub" claim used exclusively for password-reset JWTs.
 const ResetTokenSubject = "password-reset"
+
+const (
+	ClaimsContextKey   = "claims"
+	RawTokenContextKey = "raw_token"
+)
 
 type Claims struct {
 	ID    uuid.UUID `json:"id"`
@@ -109,4 +116,88 @@ func (c *Claims) VerifyJWT(rawToken string) error {
 	}
 
 	return nil
+}
+
+func VerifyRawJWT(rawToken string) (Claims, error) {
+	var claims Claims
+	if err := claims.VerifyJWT(rawToken); err != nil {
+		return Claims{}, err
+	}
+
+	return claims, nil
+}
+
+func ExtractBearerToken(authorizationHeader string) (string, error) {
+	if strings.TrimSpace(authorizationHeader) == "" {
+		return "", errors.New("missing authorization token")
+	}
+
+	parts := strings.Fields(authorizationHeader)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return "", errors.New("invalid token format, use: Bearer <token>")
+	}
+
+	return parts[1], nil
+}
+
+// ExtractRequestToken reads a token from Authorization: Bearer <token> first.
+// If allowCookie is true, it falls back to the access_token HttpOnly cookie.
+func ExtractRequestToken(ctx *gin.Context, allowCookie bool) (string, error) {
+	if rawToken, err := ExtractBearerToken(ctx.GetHeader("Authorization")); err == nil {
+		return rawToken, nil
+	} else if strings.TrimSpace(ctx.GetHeader("Authorization")) != "" {
+		return "", err
+	}
+
+	if allowCookie {
+		cookieToken, err := GetAccessTokenCookie(ctx)
+		if err == nil && strings.TrimSpace(cookieToken) != "" {
+			return cookieToken, nil
+		}
+	}
+
+	return "", errors.New("missing authorization token")
+}
+
+func SetAuthContext(ctx *gin.Context, rawToken string, claims Claims) {
+	ctx.Set(ClaimsContextKey, claims)
+	ctx.Set(RawTokenContextKey, rawToken)
+}
+
+func ClaimsFromContext(ctx *gin.Context) (Claims, bool) {
+	claimsRaw, exists := ctx.Get(ClaimsContextKey)
+	if !exists {
+		return Claims{}, false
+	}
+
+	claims, ok := claimsRaw.(Claims)
+	return claims, ok
+}
+
+func RawTokenFromContext(ctx *gin.Context) (string, bool) {
+	rawToken, exists := ctx.Get(RawTokenContextKey)
+	if !exists {
+		return "", false
+	}
+
+	token, ok := rawToken.(string)
+	return token, ok
+}
+
+func CurrentUserEmail(ctx *gin.Context) (string, bool) {
+	claims, ok := ClaimsFromContext(ctx)
+	if !ok || strings.TrimSpace(claims.Email) == "" {
+		return "", false
+	}
+
+	return claims.Email, true
+}
+
+func CurrentUserID(ctx *gin.Context) (uuid.UUID, bool) {
+	claims, ok := ClaimsFromContext(ctx)
+	if !ok || claims.ID == uuid.Nil {
+		return uuid.Nil, false
+	}
+
+	return claims.ID, true
 }
