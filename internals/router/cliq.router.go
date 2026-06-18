@@ -21,6 +21,5 @@ func CliqRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	cliq.DELETE("/:id", linkCont.DeleteLink)
 
 	// Keep this at the end so system routes like /auth, /profile, /link, and
-	// /swagger are matched before public short-link redirects.
 	router.GET("/:slug", linkCont.RedirectBySlug)
 }
