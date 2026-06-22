@@ -44,7 +44,7 @@ projects:
           - type: web
             name: cliq-frontend
             runtime: docker
-            repo: https://github.com/rivando-al-rasyid/cliq-react
+            repo: https://github.com/rivando-al-rasyid/cliq-frontend
             plan: free
             region: singapore
             dockerContext: .
