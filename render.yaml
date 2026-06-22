@@ -1,50 +1,115 @@
 version: "1"
 
 projects:
-  - name: vanwallet
+  - name: cliq
     environments:
       - name: Production
+
         services:
+          # ── Backend ─────────────────────────────────────
           - type: web
-            name: vanwallet-backend
+            name: cliq-backend
             runtime: docker
-            repo: https://github.com/rivando-al-rasyid/vanwallet-backend
+            repo: https://github.com/rivando-al-rasyid/cliq-backend
             plan: free
             region: singapore
             dockerContext: .
             dockerfilePath: ./Dockerfile
             autoDeployTrigger: commit
             envVars:
-              - key: PORT
-                value: 8080
+              # ── App Config ─────────────────────────────
+              - key: APP_NAME
+                value: cliq
 
               - key: APP_ENV
                 value: production
 
-              - key: DATABASE_URL
-                fromDatabase:
-                  name: vanwallet-postgres
-                  property: connectionString
+              # Render biasanya pakai PORT, tapi app kamu pakai APP_PORT.
+              # Saya set dua-duanya supaya lebih aman.
+              - key: PORT
+                value: 8080
 
-              - key: REDIS_URL
-                fromService:
-                  type: redis
-                  name: vanwallet-redis
-                  property: connectionString
+              - key: APP_PORT
+                value: 8080
+
+              # ── Database Config ────────────────────────
+              - key: DB_USER
+                fromDatabase:
+                  name: cliq-postgres
+                  property: user
+
+              - key: DB_PASS
+                fromDatabase:
+                  name: cliq-postgres
+                  property: password
+
+              - key: DB_NAME
+                fromDatabase:
+                  name: cliq-postgres
+                  property: database
+
+              - key: DB_HOST
+                fromDatabase:
+                  name: cliq-postgres
+                  property: host
+
+              - key: DB_PORT
+                fromDatabase:
+                  name: cliq-postgres
+                  property: port
+
+              # ── JWT Config ─────────────────────────────
+              - key: JWT_ISSUER
+                value: cliq
 
               - key: JWT_SECRET
                 sync: false
 
+              - key: JWT_EXPIRED
+                value: 15m
+
+              - key: REDIS_URL
+                fromService:
+                  type: redis
+                  name: cliq-redis
+                  property: connectionString
+
+              - key: RDB_ADDR
+                fromService:
+                  type: redis
+                  name: cliq-redis
+                  property: connectionString
+
+              - key: RDB_USER
+                value: ""
+
+              - key: RDB_PASS
+                value: ""
+
+          # ── Frontend ────────────────────────────────────
+          - type: web
+            name: cliq-frontend
+            runtime: static
+            repo: https://github.com/rivando-al-rasyid/cliq-frontend
+            plan: free
+            region: singapore
+            buildCommand: npm install && npm run build
+            autoDeployTrigger: commit
+            envVars:
+              - key: VITE_API_URL
+                value: https://cliq-backend.onrender.com
+
+          # ── Redis ───────────────────────────────────────
           - type: redis
-            name: vanwallet-redis
+            name: cliq-redis
             plan: free
             region: singapore
             maxmemoryPolicy: allkeys-lru
             ipAllowList: []
 
         databases:
-          - name: vanwallet-postgres
-            databaseName: vanwallet
-            user: vanwallet_user
+          - name: cliq-postgres
+            databaseName: cliq
+            user: cliq_user
             plan: free
             region: singapore
