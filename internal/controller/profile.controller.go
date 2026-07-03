@@ -13,10 +13,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/config"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/pkg"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/config"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/dto"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/pkg"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/service"
 )
 
 type ProfileController struct {

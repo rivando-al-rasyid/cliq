@@ -5,7 +5,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	_ "github.com/rivando-al-rasyid/cliq-backend/docs"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/middleware"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/middleware"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )

@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/pkg"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/dto"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/pkg"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/service"
 )
 
 type LinkController struct {

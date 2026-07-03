@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/model"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/model"
 )
 
 type Authrepo struct {

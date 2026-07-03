@@ -4,10 +4,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/controller"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/middleware"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/repository"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/controller"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/middleware"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/repository"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/service"
 )
 
 func AuthRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
