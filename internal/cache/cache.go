@@ -23,7 +23,7 @@ func GetFromCache[T any](ctx context.Context, rdb *redis.Client, rkey string, ds
 }
 
 func SaveToCache(ctx context.Context, rdb *redis.Client, rkey string, data any, ttl ...time.Duration) error {
-expiry := DefaultTTL
+	expiry := DefaultTTL
 	if len(ttl) > 0 {
 		expiry = ttl[0]
 	}
