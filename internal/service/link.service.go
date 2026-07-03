@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -52,10 +53,15 @@ func linkRedirectCacheKey(slug string) string {
 	return "link:redirect:" + slug
 }
 
+func linkClickCountKey(slug string) string {
+	return "link:clicks:" + slug
+}
+
 type LinkRepository interface {
 	CreateSlug(ctx context.Context, userID uuid.UUID, originLink string, slug string) (model.Link, error)
 	GetOriginLinkBySlug(ctx context.Context, slug string) (string, error)
 	ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error)
+	ListActiveSlugsByUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 	SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (string, error)
 }
 
@@ -76,12 +82,88 @@ func (c *LinkService) cacheOriginLink(ctx context.Context, slug, originLink stri
 	_ = cache.SaveToCache(ctx, c.rdb, linkRedirectCacheKey(slug), originLink)
 }
 
-func (c *LinkService) deleteOriginLinkCache(ctx context.Context, slug string) {
+func (c *LinkService) deleteLinkCaches(ctx context.Context, slug string) {
 	if c.rdb == nil || slug == "" {
 		return
 	}
 
-	_ = cache.DelFromCache(ctx, c.rdb, linkRedirectCacheKey(slug))
+	_ = cache.DelFromCache(ctx, c.rdb, linkRedirectCacheKey(slug), linkClickCountKey(slug))
+}
+
+func (c *LinkService) resetClickCount(ctx context.Context, slug string) {
+	if c.rdb == nil || slug == "" {
+		return
+	}
+
+	_ = c.rdb.Del(ctx, linkClickCountKey(slug)).Err()
+}
+
+func (c *LinkService) trackClick(ctx context.Context, slug string) {
+	if c.rdb == nil || slug == "" {
+		return
+	}
+
+	_ = c.rdb.Incr(ctx, linkClickCountKey(slug)).Err()
+}
+
+func parseRedisInt(value any) int {
+	switch v := value.(type) {
+	case nil:
+		return 0
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case string:
+		parsed, err := strconv.Atoi(v)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	case []byte:
+		parsed, err := strconv.Atoi(string(v))
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func (c *LinkService) getClickCounts(ctx context.Context, slugs []string) map[string]int {
+	counts := make(map[string]int, len(slugs))
+	for _, slug := range slugs {
+		counts[slug] = 0
+	}
+
+	if c.rdb == nil || len(slugs) == 0 {
+		return counts
+	}
+
+	keys := make([]string, 0, len(slugs))
+	for _, slug := range slugs {
+		keys = append(keys, linkClickCountKey(slug))
+	}
+
+	values, err := c.rdb.MGet(ctx, keys...).Result()
+	if err != nil {
+		return counts
+	}
+
+	for i, value := range values {
+		counts[slugs[i]] = parseRedisInt(value)
+	}
+
+	return counts
+}
+
+func slugsFromLinks(links []model.Link) []string {
+	slugs := make([]string, 0, len(links))
+	for _, link := range links {
+		slugs = append(slugs, link.Slug)
+	}
+	return slugs
 }
 
 func normalizeSlug(slug string) string {
@@ -163,8 +245,9 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 		}
 
 		c.cacheOriginLink(ctx, created.Slug, created.OriginLink)
+		c.resetClickCount(ctx, created.Slug)
 
-		return toLinkResponse(created, shortLinkBase), nil
+		return toLinkResponse(created, shortLinkBase, 0), nil
 	}
 
 	for i := 0; i < maxSlugRetries; i++ {
@@ -176,8 +259,9 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 		created, err := c.repo.CreateSlug(ctx, userID, originLink, slug)
 		if err == nil {
 			c.cacheOriginLink(ctx, created.Slug, created.OriginLink)
+			c.resetClickCount(ctx, created.Slug)
 
-			return toLinkResponse(created, shortLinkBase), nil
+			return toLinkResponse(created, shortLinkBase, 0), nil
 		}
 
 		if isDuplicateSlugError(err) {
@@ -204,9 +288,20 @@ func (c *LinkService) GetDashboard(ctx context.Context, userID uuid.UUID, page, 
 		return dto.DashboardResponse{}, err
 	}
 
+	activeSlugs, err := c.repo.ListActiveSlugsByUser(ctx, userID)
+	if err != nil {
+		return dto.DashboardResponse{}, err
+	}
+
+	clickCounts := c.getClickCounts(ctx, activeSlugs)
 	items := make([]dto.LinkResponse, 0, len(links))
 	for _, link := range links {
-		items = append(items, toLinkResponse(link, shortLinkBase))
+		items = append(items, toLinkResponse(link, shortLinkBase, clickCounts[link.Slug]))
+	}
+
+	totalClicks := 0
+	for _, slug := range activeSlugs {
+		totalClicks += clickCounts[slug]
 	}
 
 	totalPages := 1
@@ -217,7 +312,7 @@ func (c *LinkService) GetDashboard(ctx context.Context, userID uuid.UUID, page, 
 	return dto.DashboardResponse{
 		Links:       items,
 		TotalActive: total,
-		TotalClicks: 0,
+		TotalClicks: totalClicks,
 		Page:        page,
 		Limit:       limit,
 		TotalPages:  totalPages,
@@ -239,7 +334,7 @@ func (c *LinkService) DeleteLink(ctx context.Context, userID uuid.UUID, rawLinkI
 		return err
 	}
 
-	c.deleteOriginLinkCache(ctx, slug)
+	c.deleteLinkCaches(ctx, slug)
 
 	return nil
 }
@@ -254,6 +349,7 @@ func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, 
 		var cachedOriginLink string
 		err := cache.GetFromCache(ctx, c.rdb, linkRedirectCacheKey(slug), &cachedOriginLink)
 		if err == nil && strings.TrimSpace(cachedOriginLink) != "" {
+			c.trackClick(ctx, slug)
 			return cachedOriginLink, nil
 		}
 	}
@@ -268,11 +364,12 @@ func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, 
 	}
 
 	c.cacheOriginLink(ctx, slug, originLink)
+	c.trackClick(ctx, slug)
 
 	return originLink, nil
 }
 
-func toLinkResponse(link model.Link, shortLinkBase string) dto.LinkResponse {
+func toLinkResponse(link model.Link, shortLinkBase string, clicks int) dto.LinkResponse {
 	base := strings.TrimRight(shortLinkBase, "/")
 
 	return dto.LinkResponse{
@@ -280,7 +377,7 @@ func toLinkResponse(link model.Link, shortLinkBase string) dto.LinkResponse {
 		OriginLink: link.OriginLink,
 		Slug:       link.Slug,
 		ShortURL:   base + "/" + link.Slug,
-		Clicks:     0,
+		Clicks:     clicks,
 		CreatedAt:  link.CreatedAt,
 	}
 }

@@ -120,6 +120,37 @@ func (c *LinkRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit,
 	return links, total, nil
 }
 
+func (c *LinkRepo) ListActiveSlugsByUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := c.db.Query(ctx,
+		`
+		SELECT slug
+		FROM links
+		WHERE user_id = $1
+		  AND is_deleted = false
+		`,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list active slugs by user: %w", err)
+	}
+	defer rows.Close()
+
+	slugs := make([]string, 0)
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, fmt.Errorf("scan active slug: %w", err)
+		}
+		slugs = append(slugs, slug)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active slugs: %w", err)
+	}
+
+	return slugs, nil
+}
+
 func (c *LinkRepo) SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (string, error) {
 	var slug string
 
