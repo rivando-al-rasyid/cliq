@@ -14,12 +14,12 @@ import (
 	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
 )
 
-type CliqController struct {
-	CliqService *service.CliqService
+type LinkController struct {
+	LinkService *service.LinkService
 }
 
-func NewCliqController(cliqService *service.CliqService) *CliqController {
-	return &CliqController{CliqService: cliqService}
+func NewLinkController(cliqService *service.LinkService) *LinkController {
+	return &LinkController{LinkService: cliqService}
 }
 
 func shortLinkBase(ctx *gin.Context) string {
@@ -54,7 +54,7 @@ func shortLinkBase(ctx *gin.Context) string {
 // @Failure      409   {object}  dto.Response  "Slug already exists"
 // @Failure      500   {object}  dto.Response  "Internal server error"
 // @Router       /link/create [post]
-func (c *CliqController) CreateSlug(ctx *gin.Context) {
+func (c *LinkController) CreateSlug(ctx *gin.Context) {
 	userID, ok := pkg.CurrentUserID(ctx)
 	if !ok {
 		ctx.JSON(
@@ -66,7 +66,7 @@ func (c *CliqController) CreateSlug(ctx *gin.Context) {
 
 	var body dto.Link
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		log.Printf("[CliqController.CreateSlug] bind error: %v\n", err)
+		log.Printf("[LinkController.CreateSlug] bind error: %v\n", err)
 
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -75,9 +75,9 @@ func (c *CliqController) CreateSlug(ctx *gin.Context) {
 		return
 	}
 
-	link, err := c.CliqService.CreateSlug(ctx.Request.Context(), userID, body, shortLinkBase(ctx))
+	link, err := c.LinkService.CreateSlug(ctx.Request.Context(), userID, body, shortLinkBase(ctx))
 	if err != nil {
-		log.Printf("[CliqController.CreateSlug] service error: %v\n", err)
+		log.Printf("[LinkController.CreateSlug] service error: %v\n", err)
 
 		switch {
 		case errors.Is(err, service.ErrInvalidOriginLink),
@@ -111,7 +111,7 @@ func (c *CliqController) CreateSlug(ctx *gin.Context) {
 // @Failure      401    {object}  dto.Response                            "Unauthorized"
 // @Failure      500    {object}  dto.Response                            "Internal server error"
 // @Router       /link/dashboard [get]
-func (c *CliqController) GetDashboard(ctx *gin.Context) {
+func (c *LinkController) GetDashboard(ctx *gin.Context) {
 	userID, ok := pkg.CurrentUserID(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing or invalid user context")))
@@ -121,9 +121,9 @@ func (c *CliqController) GetDashboard(ctx *gin.Context) {
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
 
-	dashboard, err := c.CliqService.GetDashboard(ctx.Request.Context(), userID, page, limit, shortLinkBase(ctx))
+	dashboard, err := c.LinkService.GetDashboard(ctx.Request.Context(), userID, page, limit, shortLinkBase(ctx))
 	if err != nil {
-		log.Printf("[CliqController.GetDashboard] service error: %v\n", err)
+		log.Printf("[LinkController.GetDashboard] service error: %v\n", err)
 		ctx.JSON(http.StatusInternalServerError, dto.NewError("Dashboard failed", err))
 		return
 	}
@@ -145,15 +145,15 @@ func (c *CliqController) GetDashboard(ctx *gin.Context) {
 // @Failure      404  {object}  dto.Response  "Link not found"
 // @Failure      500  {object}  dto.Response  "Internal server error"
 // @Router       /link/{id} [delete]
-func (c *CliqController) DeleteLink(ctx *gin.Context) {
+func (c *LinkController) DeleteLink(ctx *gin.Context) {
 	userID, ok := pkg.CurrentUserID(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing or invalid user context")))
 		return
 	}
 
-	if err := c.CliqService.DeleteLink(ctx.Request.Context(), userID, ctx.Param("id")); err != nil {
-		log.Printf("[CliqController.DeleteLink] service error: %v\n", err)
+	if err := c.LinkService.DeleteLink(ctx.Request.Context(), userID, ctx.Param("id")); err != nil {
+		log.Printf("[LinkController.DeleteLink] service error: %v\n", err)
 
 		switch {
 		case errors.Is(err, service.ErrInvalidLinkID):
@@ -178,10 +178,10 @@ func (c *CliqController) DeleteLink(ctx *gin.Context) {
 // @Failure      404   {object}  dto.Response  "Slug not found"
 // @Failure      500   {object}  dto.Response  "Internal server error"
 // @Router       /{slug} [get]
-func (c *CliqController) RedirectBySlug(ctx *gin.Context) {
+func (c *LinkController) RedirectBySlug(ctx *gin.Context) {
 	slug := ctx.Param("slug")
 
-	originLink, err := c.CliqService.RedirectBySlug(ctx.Request.Context(), slug)
+	originLink, err := c.LinkService.RedirectBySlug(ctx.Request.Context(), slug)
 	if err != nil {
 		if errors.Is(err, service.ErrLinkNotFound) {
 			ctx.JSON(
@@ -191,7 +191,7 @@ func (c *CliqController) RedirectBySlug(ctx *gin.Context) {
 			return
 		}
 
-		log.Printf("[CliqController.RedirectBySlug] service error: %v\n", err)
+		log.Printf("[LinkController.RedirectBySlug] service error: %v\n", err)
 		ctx.JSON(
 			http.StatusInternalServerError,
 			dto.NewError("Redirect failed", err),

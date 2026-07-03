@@ -10,10 +10,10 @@ import (
 	"github.com/rivando-al-rasyid/cliq-backend/internals/service"
 )
 
-func CliqRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
-	linkRepo := repository.NewCliqRepo(db)
-	linkServ := service.NewCliqService(linkRepo, rdb)
-	linkCont := controller.NewCliqController(linkServ)
+func LinkRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
+	linkRepo := repository.NewLinkRepo(db)
+	linkServ := service.NewLinkService(linkRepo, rdb)
+	linkCont := controller.NewLinkController(linkServ)
 
 	cliq := router.Group("/link", middleware.AuthRequired(db))
 	cliq.POST("/create", linkCont.CreateSlug)

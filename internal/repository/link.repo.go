@@ -11,15 +11,15 @@ import (
 	"github.com/rivando-al-rasyid/cliq-backend/internals/model"
 )
 
-type CliqRepo struct {
+type LinkRepo struct {
 	db *pgxpool.Pool
 }
 
-func NewCliqRepo(db *pgxpool.Pool) *CliqRepo {
-	return &CliqRepo{db: db}
+func NewLinkRepo(db *pgxpool.Pool) *LinkRepo {
+	return &LinkRepo{db: db}
 }
 
-func (c *CliqRepo) CreateSlug(
+func (c *LinkRepo) CreateSlug(
 	ctx context.Context,
 	userID uuid.UUID,
 	originLink string,
@@ -48,7 +48,7 @@ func (c *CliqRepo) CreateSlug(
 	return link, nil
 }
 
-func (c *CliqRepo) GetOriginLinkBySlug(ctx context.Context, slug string) (string, error) {
+func (c *LinkRepo) GetOriginLinkBySlug(ctx context.Context, slug string) (string, error) {
 	var originLink string
 
 	err := c.db.QueryRow(ctx,
@@ -72,7 +72,7 @@ func (c *CliqRepo) GetOriginLinkBySlug(ctx context.Context, slug string) (string
 	return originLink, nil
 }
 
-func (c *CliqRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error) {
+func (c *LinkRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error) {
 	var total int
 	if err := c.db.QueryRow(ctx,
 		`
@@ -120,7 +120,7 @@ func (c *CliqRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit,
 	return links, total, nil
 }
 
-func (c *CliqRepo) SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) error {
+func (c *LinkRepo) SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) error {
 	result, err := c.db.Exec(ctx,
 		`
 		UPDATE links

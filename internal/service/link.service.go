@@ -47,20 +47,20 @@ const (
 	slugAlphabet   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
-type CliqRepository interface {
+type LinkRepository interface {
 	CreateSlug(ctx context.Context, userID uuid.UUID, originLink string, slug string) (model.Link, error)
 	GetOriginLinkBySlug(ctx context.Context, slug string) (string, error)
 	ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error)
 	SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) error
 }
 
-type CliqService struct {
-	repo CliqRepository
+type LinkService struct {
+	repo LinkRepository
 	rdb  *redis.Client
 }
 
-func NewCliqService(repo CliqRepository, rdb *redis.Client) *CliqService {
-	return &CliqService{repo: repo, rdb: rdb}
+func NewLinkService(repo LinkRepository, rdb *redis.Client) *LinkService {
+	return &LinkService{repo: repo, rdb: rdb}
 }
 
 func normalizeSlug(slug string) string {
@@ -120,7 +120,7 @@ func isDuplicateSlugError(err error) bool {
 		strings.Contains(lowerErr, "23505")
 }
 
-func (c *CliqService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto.Link, shortLinkBase string) (dto.LinkResponse, error) {
+func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto.Link, shortLinkBase string) (dto.LinkResponse, error) {
 	originLink := strings.TrimSpace(link.OriginLink)
 	if err := validateOriginLink(originLink); err != nil {
 		return dto.LinkResponse{}, err
@@ -165,7 +165,7 @@ func (c *CliqService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 	return dto.LinkResponse{}, ErrSlugAlreadyExists
 }
 
-func (c *CliqService) GetDashboard(ctx context.Context, userID uuid.UUID, page, limit int, shortLinkBase string) (dto.DashboardResponse, error) {
+func (c *LinkService) GetDashboard(ctx context.Context, userID uuid.UUID, page, limit int, shortLinkBase string) (dto.DashboardResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -199,7 +199,7 @@ func (c *CliqService) GetDashboard(ctx context.Context, userID uuid.UUID, page, 
 	}, nil
 }
 
-func (c *CliqService) DeleteLink(ctx context.Context, userID uuid.UUID, rawLinkID string) error {
+func (c *LinkService) DeleteLink(ctx context.Context, userID uuid.UUID, rawLinkID string) error {
 	linkID, err := uuid.Parse(strings.TrimSpace(rawLinkID))
 	if err != nil {
 		return ErrInvalidLinkID
@@ -216,7 +216,7 @@ func (c *CliqService) DeleteLink(ctx context.Context, userID uuid.UUID, rawLinkI
 	return nil
 }
 
-func (c *CliqService) RedirectBySlug(ctx context.Context, slug string) (string, error) {
+func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return "", ErrLinkNotFound
