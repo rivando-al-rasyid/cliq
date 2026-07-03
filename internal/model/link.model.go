@@ -11,5 +11,6 @@ type Link struct {
 	UserID     uuid.UUID `db:"user_id"`
 	OriginLink string    `db:"origin_link"`
 	Slug       string    `db:"slug"`
+	Clicks     int       `db:"clicks"`
 	CreatedAt  time.Time `db:"created_at"`
 }
