@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
+	"github.com/rivando-al-rasyid/cliq-backend/internals/cache"
 	"github.com/rivando-al-rasyid/cliq-backend/internals/dto"
 	"github.com/rivando-al-rasyid/cliq-backend/internals/model"
 )
@@ -47,11 +48,15 @@ const (
 	slugAlphabet   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
+func linkRedirectCacheKey(slug string) string {
+	return "link:redirect:" + slug
+}
+
 type LinkRepository interface {
 	CreateSlug(ctx context.Context, userID uuid.UUID, originLink string, slug string) (model.Link, error)
 	GetOriginLinkBySlug(ctx context.Context, slug string) (string, error)
 	ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error)
-	SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) error
+	SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (string, error)
 }
 
 type LinkService struct {
@@ -61,6 +66,22 @@ type LinkService struct {
 
 func NewLinkService(repo LinkRepository, rdb *redis.Client) *LinkService {
 	return &LinkService{repo: repo, rdb: rdb}
+}
+
+func (c *LinkService) cacheOriginLink(ctx context.Context, slug, originLink string) {
+	if c.rdb == nil || slug == "" || originLink == "" {
+		return
+	}
+
+	_ = cache.SaveToCache(ctx, c.rdb, linkRedirectCacheKey(slug), originLink)
+}
+
+func (c *LinkService) deleteOriginLinkCache(ctx context.Context, slug string) {
+	if c.rdb == nil || slug == "" {
+		return
+	}
+
+	_ = cache.DelFromCache(ctx, c.rdb, linkRedirectCacheKey(slug))
 }
 
 func normalizeSlug(slug string) string {
@@ -141,6 +162,8 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 			return dto.LinkResponse{}, err
 		}
 
+		c.cacheOriginLink(ctx, created.Slug, created.OriginLink)
+
 		return toLinkResponse(created, shortLinkBase), nil
 	}
 
@@ -152,6 +175,8 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 
 		created, err := c.repo.CreateSlug(ctx, userID, originLink, slug)
 		if err == nil {
+			c.cacheOriginLink(ctx, created.Slug, created.OriginLink)
+
 			return toLinkResponse(created, shortLinkBase), nil
 		}
 
@@ -205,13 +230,16 @@ func (c *LinkService) DeleteLink(ctx context.Context, userID uuid.UUID, rawLinkI
 		return ErrInvalidLinkID
 	}
 
-	if err := c.repo.SoftDeleteLinkByID(ctx, userID, linkID); err != nil {
+	slug, err := c.repo.SoftDeleteLinkByID(ctx, userID, linkID)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrLinkNotFound
 		}
 
 		return err
 	}
+
+	c.deleteOriginLinkCache(ctx, slug)
 
 	return nil
 }
@@ -222,6 +250,14 @@ func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, 
 		return "", ErrLinkNotFound
 	}
 
+	if c.rdb != nil {
+		var cachedOriginLink string
+		err := cache.GetFromCache(ctx, c.rdb, linkRedirectCacheKey(slug), &cachedOriginLink)
+		if err == nil && strings.TrimSpace(cachedOriginLink) != "" {
+			return cachedOriginLink, nil
+		}
+	}
+
 	originLink, err := c.repo.GetOriginLinkBySlug(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -230,6 +266,8 @@ func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, 
 
 		return "", err
 	}
+
+	c.cacheOriginLink(ctx, slug, originLink)
 
 	return originLink, nil
 }

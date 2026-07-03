@@ -120,25 +120,28 @@ func (c *LinkRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit,
 	return links, total, nil
 }
 
-func (c *LinkRepo) SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) error {
-	result, err := c.db.Exec(ctx,
+func (c *LinkRepo) SoftDeleteLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (string, error) {
+	var slug string
+
+	err := c.db.QueryRow(ctx,
 		`
 		UPDATE links
 		SET is_deleted = true
 		WHERE id = $1
 		  AND user_id = $2
 		  AND is_deleted = false
+		RETURNING slug
 		`,
 		linkID,
 		userID,
-	)
+	).Scan(&slug)
 	if err != nil {
-		return fmt.Errorf("soft delete link by id: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", pgx.ErrNoRows
+		}
+
+		return "", fmt.Errorf("soft delete link by id: %w", err)
 	}
 
-	if result.RowsAffected() == 0 {
-		return pgx.ErrNoRows
-	}
-
-	return nil
+	return slug, nil
 }
