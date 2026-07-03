@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/config"
-	"github.com/rivando-al-rasyid/cliq-backend/internals/router"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/config"
+	"github.com/rivando-al-rasyid/cliq-backend/internal/router"
 )
 
 // @title						Cliq
