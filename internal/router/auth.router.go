@@ -20,6 +20,7 @@ func AuthRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	// Public — no token required
 	auth.POST("/register", authCont.Register)
 	auth.POST("/login", authCont.Login)
+	auth.POST("/google", authCont.GoogleLogin)
 	auth.POST("/reset", authCont.ResetPassword)
 	auth.POST("/reset/confirm", authCont.ConfirmResetPassword)
 

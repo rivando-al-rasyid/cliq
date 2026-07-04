@@ -36,3 +36,9 @@ type UserResponse struct {
 	ID    uuid.UUID `json:"id"`
 	Email string    `json:"email"`
 }
+
+// GoogleLoginRequest accepts the Google ID token credential returned by
+// @react-oauth/google's GoogleLogin component.
+type GoogleLoginRequest struct {
+	Credential string `json:"credential" binding:"required" example:"eyJhbGciOi..."`
+}

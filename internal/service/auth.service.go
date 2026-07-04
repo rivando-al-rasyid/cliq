@@ -4,8 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +25,7 @@ import (
 type AuthRepo interface {
 	Register(ctx context.Context, email, password string) (model.User, error)
 	Login(ctx context.Context, email string) (model.User, error)
+	FindOrCreateOAuthUser(ctx context.Context, email, passwordHash, fullName, photo string) (model.User, error)
 	GetUserByResetToken(ctx context.Context, rawToken string) (model.User, error)
 	SaveToken(ctx context.Context, userID uuid.UUID, rawToken string, tokenType model.TokenType, expiresAt time.Time) error
 	RevokeToken(ctx context.Context, rawToken string) error
@@ -62,15 +69,53 @@ func (a *AuthService) Login(ctx context.Context, user dto.LoginRequest) (AuthSes
 		return AuthSession{}, err
 	}
 
-	claims := pkg.NewClaims(login.ID, user.Email)
+	return a.createSession(ctx, *login)
+}
+
+func (a *AuthService) GoogleLogin(ctx context.Context, body dto.GoogleLoginRequest) (AuthSession, error) {
+	profile, err := verifyGoogleCredential(ctx, body.Credential)
+	if err != nil {
+		return AuthSession{}, err
+	}
+
+	randomPassword, err := generateResetToken(32)
+	if err != nil {
+		return AuthSession{}, err
+	}
+
+	var hc pkg.HashConfig
+	hc.UseRecommended()
+	passwordHash := hc.GenHash(randomPassword)
+
+	user, err := a.authRepo.FindOrCreateOAuthUser(
+		ctx,
+		profile.Email,
+		passwordHash,
+		profile.Name,
+		profile.Picture,
+	)
+	if err != nil {
+		return AuthSession{}, err
+	}
+
+	if err := cache.DelFromCache(ctx, a.rdb, userCacheKey(user.Email)); err != nil {
+		log.Println("cache evict error on google login:", err)
+	}
+
+	return a.createSession(ctx, user)
+}
+
+func (a *AuthService) createSession(ctx context.Context, user model.User) (AuthSession, error) {
+	claims := pkg.NewClaims(user.ID, user.Email)
 	token, err := claims.GenJWT()
 	if err != nil {
 		return AuthSession{}, err
 	}
+
 	expiresAt := time.Now().Add(pkg.AccessTokenExpiry)
 	if err := a.authRepo.SaveToken(
 		ctx,
-		login.ID,
+		user.ID,
 		token,
 		model.TokenTypeAccess,
 		expiresAt,
@@ -81,7 +126,7 @@ func (a *AuthService) Login(ctx context.Context, user dto.LoginRequest) (AuthSes
 	return AuthSession{
 		Token: token,
 		User: dto.UserResponse{
-			ID:    login.ID,
+			ID:    user.ID,
 			Email: user.Email,
 		},
 	}, nil
@@ -139,7 +184,7 @@ func (a *AuthService) ChangeResetPassword(ctx context.Context, userID uuid.UUID,
 }
 
 func (a *AuthService) getOrFetchUser(ctx context.Context, email string) (*model.User, error) {
-	rkey := "vando:user:" + email
+	rkey := userCacheKey(email)
 
 	var user model.User
 	if err := cache.GetFromCache(ctx, a.rdb, rkey, &user); err == nil {
@@ -166,11 +211,93 @@ func (a *AuthService) Logout(ctx context.Context, rawToken, email string) error 
 	if err := a.authRepo.RevokeToken(ctx, rawToken); err != nil {
 		return err
 	}
-	rkey := "vando:user:" + email
+	rkey := userCacheKey(email)
 	if err := cache.DelFromCache(ctx, a.rdb, rkey); err != nil {
 		log.Println("cache evict error on logout:", err) // non-fatal
 	}
 	return nil
+}
+
+type googleTokenInfo struct {
+	Issuer        string `json:"iss"`
+	Audience      string `json:"aud"`
+	Subject       string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified any    `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	Error         string `json:"error"`
+	ErrorDesc     string `json:"error_description"`
+}
+
+func verifyGoogleCredential(ctx context.Context, credential string) (googleTokenInfo, error) {
+	clientID := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
+	if clientID == "" {
+		return googleTokenInfo{}, errors.New("GOOGLE_CLIENT_ID is not configured")
+	}
+
+	endpoint := "https://oauth2.googleapis.com/tokeninfo?id_token=" + url.QueryEscape(credential)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return googleTokenInfo{}, err
+	}
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return googleTokenInfo{}, fmt.Errorf("verify google token: %w", err)
+	}
+	defer res.Body.Close()
+
+	var profile googleTokenInfo
+	if err := json.NewDecoder(res.Body).Decode(&profile); err != nil {
+		return googleTokenInfo{}, fmt.Errorf("decode google token info: %w", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		msg := strings.TrimSpace(profile.ErrorDesc)
+		if msg == "" {
+			msg = strings.TrimSpace(profile.Error)
+		}
+		if msg == "" {
+			msg = "invalid google credential"
+		}
+		return googleTokenInfo{}, errors.New(msg)
+	}
+
+	if profile.Audience != clientID {
+		return googleTokenInfo{}, errors.New("google credential audience does not match this app")
+	}
+
+	if profile.Issuer != "accounts.google.com" && profile.Issuer != "https://accounts.google.com" {
+		return googleTokenInfo{}, errors.New("invalid google credential issuer")
+	}
+
+	if strings.TrimSpace(profile.Subject) == "" || strings.TrimSpace(profile.Email) == "" {
+		return googleTokenInfo{}, errors.New("google credential is missing required identity fields")
+	}
+
+	if !isGoogleEmailVerified(profile.EmailVerified) {
+		return googleTokenInfo{}, errors.New("google account email is not verified")
+	}
+
+	profile.Email = strings.ToLower(strings.TrimSpace(profile.Email))
+	return profile, nil
+}
+
+func isGoogleEmailVerified(value any) bool {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(v, "true")
+	default:
+		return false
+	}
+}
+
+func userCacheKey(email string) string {
+	return "cliq:user:" + strings.ToLower(strings.TrimSpace(email))
 }
 
 func generateResetToken(byteLength int) (string, error) {

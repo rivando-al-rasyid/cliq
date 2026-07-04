@@ -61,11 +61,89 @@ func (a *Authrepo) Register(ctx context.Context, email, hashpwd string) (model.U
 func (a *Authrepo) Login(ctx context.Context, email string) (model.User, error) {
 	var user model.User
 	err := a.db.QueryRow(ctx,
-		`SELECT id, password FROM users WHERE email = $1`, email,
-	).Scan(&user.ID, &user.Password)
+		`SELECT id, email, password FROM users WHERE email = $1`, email,
+	).Scan(&user.ID, &user.Email, &user.Password)
 	if err != nil {
 		return model.User{}, err
 	}
+	return user, nil
+}
+
+func (a *Authrepo) FindOrCreateOAuthUser(ctx context.Context, email, passwordHash, fullName, photo string) (model.User, error) {
+	tx, err := a.db.Begin(ctx)
+	if err != nil {
+		return model.User{}, fmt.Errorf("FindOrCreateOAuthUser begin tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var user model.User
+	err = tx.QueryRow(ctx,
+		`SELECT id, email, created_at, updated_at FROM users WHERE email = $1`,
+		email,
+	).Scan(&user.ID, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+
+	if err == nil {
+		if _, err = tx.Exec(ctx, `
+			UPDATE profiles
+			SET
+				full_name = CASE
+					WHEN NULLIF(full_name, '') IS NULL AND NULLIF($2, '') IS NOT NULL THEN $2
+					ELSE full_name
+				END,
+				photo = CASE
+					WHEN NULLIF(photo, '') IS NULL AND NULLIF($3, '') IS NOT NULL THEN $3
+					ELSE photo
+				END,
+				updated_at = CASE
+					WHEN (NULLIF(full_name, '') IS NULL AND NULLIF($2, '') IS NOT NULL)
+					  OR (NULLIF(photo, '') IS NULL AND NULLIF($3, '') IS NOT NULL)
+					THEN now()
+					ELSE updated_at
+				END
+			WHERE user_id = $1`, user.ID, fullName, photo,
+		); err != nil {
+			return model.User{}, fmt.Errorf("FindOrCreateOAuthUser update profile: %w", err)
+		}
+
+		if err = tx.Commit(ctx); err != nil {
+			return model.User{}, fmt.Errorf("FindOrCreateOAuthUser commit existing: %w", err)
+		}
+		return user, nil
+	}
+
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return model.User{}, fmt.Errorf("FindOrCreateOAuthUser select user: %w", err)
+	}
+
+	err = tx.QueryRow(ctx,
+		`INSERT INTO users (email, password) VALUES ($1, $2)
+		 RETURNING id, email, created_at`,
+		email,
+		passwordHash,
+	).Scan(&user.ID, &user.Email, &user.CreatedAt)
+	if err != nil {
+		return model.User{}, fmt.Errorf("FindOrCreateOAuthUser insert user: %w", err)
+	}
+
+	if strings.TrimSpace(fullName) == "" {
+		fullName = strings.Split(email, "@")[0]
+	}
+
+	if _, err = tx.Exec(ctx,
+		`INSERT INTO profiles (user_id, full_name, photo) VALUES ($1, $2, $3)`,
+		user.ID,
+		fullName,
+		photo,
+	); err != nil {
+		return model.User{}, fmt.Errorf("FindOrCreateOAuthUser insert profile: %w", err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return model.User{}, fmt.Errorf("FindOrCreateOAuthUser commit new: %w", err)
+	}
+
 	return user, nil
 }
 

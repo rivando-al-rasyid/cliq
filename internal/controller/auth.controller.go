@@ -85,6 +85,38 @@ func (a *AuthController) Login(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dto.NewSuccess("Login successful", session.User))
 }
 
+// GoogleLogin godoc
+// @Summary      Login or register with Google
+// @Description  Verifies a Google ID token credential, creates the user if needed, stores the access JWT in an HttpOnly cookie, and returns public user data.
+// @Tags         Authentication
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dto.GoogleLoginRequest  true  "Google credential payload"
+// @Success      200   {object}  dto.Response{data=dto.UserResponse}  "Google login successful"
+// @Header       200   {string}  Set-Cookie                            "HttpOnly access token cookie"
+// @Failure      400   {object}  dto.Response                          "Invalid request payload"
+// @Failure      401   {object}  dto.Response                          "Invalid Google credential"
+// @Router       /auth/google [post]
+func (a *AuthController) GoogleLogin(ctx *gin.Context) {
+	var body dto.GoogleLoginRequest
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		log.Printf("[AuthController.GoogleLogin] bind error: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid Google credential payload", err))
+		return
+	}
+
+	session, err := a.authservice.GoogleLogin(ctx.Request.Context(), body)
+	if err != nil {
+		log.Printf("[AuthController.GoogleLogin] service error: %v\n", err)
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Google login failed", err))
+		return
+	}
+
+	pkg.SetAccessTokenCookie(ctx, session.Token)
+
+	ctx.JSON(http.StatusOK, dto.NewSuccess("Google login successful", session.User))
+}
+
 // Me godoc
 // @Summary      Get current authenticated user
 // @Description  Returns the active user identity from the verified access cookie or Bearer token.
