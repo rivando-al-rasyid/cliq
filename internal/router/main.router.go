@@ -12,6 +12,9 @@ import (
 
 func MainRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	router.Use(middleware.CORSMiddleware)
+	router.GET("/health", func(ctx *gin.Context) {
+		ctx.JSON(200, gin.H{"status": "ok"})
+	})
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 	router.Static("/img", "public/img")
 	AuthRouter(router, db, rdb)

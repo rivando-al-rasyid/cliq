@@ -12,11 +12,14 @@ const AccessTokenCookieName = "access_token"
 
 func cookieSecure() bool {
 	value := strings.ToLower(strings.TrimSpace(os.Getenv("COOKIE_SECURE")))
-	if value == "true" || value == "1" || value == "yes" {
+	switch value {
+	case "true", "1", "yes":
 		return true
+	case "false", "0", "no":
+		return false
+	default:
+		return strings.ToLower(os.Getenv("APP_ENV")) == "production" || strings.ToLower(os.Getenv("GIN_MODE")) == "release"
 	}
-
-	return strings.ToLower(os.Getenv("APP_ENV")) == "production" || strings.ToLower(os.Getenv("GIN_MODE")) == "release"
 }
 
 func cookieSameSite() http.SameSite {

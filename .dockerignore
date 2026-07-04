@@ -1,0 +1,9 @@
+.git
+.gitignore
+.air.toml
+.vscode
+public/img/*
+!public/img/.gitkeep
+*.log
+.env
+.env.*

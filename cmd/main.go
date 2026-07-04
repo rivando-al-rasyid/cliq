@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rivando-al-rasyid/cliq-backend/internal/config"
@@ -40,7 +41,12 @@ func main() {
 	// install router
 	router.MainRouter(app, db, rc)
 
-	if err := app.Run("0.0.0.0:8080"); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if err := app.Run("0.0.0.0:" + port); err != nil {
 		log.Fatalf("Failed to start server %v", err)
 	}
 
