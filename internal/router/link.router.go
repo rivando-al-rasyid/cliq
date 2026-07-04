@@ -18,6 +18,7 @@ func LinkRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	linkServ := service.NewLinkService(linkRepo, rdb)
 	linkServ.StartClickFlushWorker(context.Background(), 10*time.Minute)
 	linkCont := controller.NewLinkController(linkServ)
+
 	router.POST("/link/guest", linkCont.CreateGuestSlug)
 
 	link := router.Group("/link", middleware.AuthRequired(db))
