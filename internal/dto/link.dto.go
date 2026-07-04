@@ -10,12 +10,14 @@ type Link struct {
 }
 
 type LinkResponse struct {
-	ID         string    `json:"id,omitempty"`
-	OriginLink string    `json:"origin_link"`
-	Slug       string    `json:"slug"`
-	ShortURL   string    `json:"short_url"`
-	Clicks     int       `json:"clicks"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string     `json:"id,omitempty"`
+	OriginLink string     `json:"origin_link"`
+	Slug       string     `json:"slug"`
+	ShortURL   string     `json:"short_url"`
+	Clicks     int        `json:"clicks"`
+	Temporary  bool       `json:"temporary"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 }
 
 type DashboardResponse struct {

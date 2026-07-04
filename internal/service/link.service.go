@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"log"
 	"math"
@@ -22,14 +23,16 @@ import (
 )
 
 var (
-	ErrLinkNotFound      = errors.New("link not found")
-	ErrInvalidOriginLink = errors.New("origin link must start with http:// or https://")
-	ErrInvalidSlug       = errors.New("slug must be 3-50 characters and can only contain letters, numbers, and hyphens")
-	ErrReservedSlug      = errors.New("slug is reserved and cannot be used")
-	ErrSlugAlreadyExists = errors.New("slug already exists")
-	ErrInvalidLinkID     = errors.New("invalid link id")
-	validSlugPattern     = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
-	reservedSlugs        = map[string]struct{}{
+	ErrLinkNotFound            = errors.New("link not found")
+	ErrInvalidOriginLink       = errors.New("origin link must start with http:// or https://")
+	ErrInvalidSlug             = errors.New("slug must be 3-50 characters and can only contain letters, numbers, and hyphens")
+	ErrReservedSlug            = errors.New("slug is reserved and cannot be used")
+	ErrSlugAlreadyExists       = errors.New("slug already exists")
+	ErrInvalidLinkID           = errors.New("invalid link id")
+	ErrGuestLimitExceeded      = errors.New("guest short link limit reached: maximum 5 links per 24 hours")
+	ErrGuestStorageUnavailable = errors.New("temporary guest links require redis storage")
+	validSlugPattern           = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+	reservedSlugs              = map[string]struct{}{
 		"api":       {},
 		"login":     {},
 		"register":  {},
@@ -51,6 +54,8 @@ const (
 	slugAlphabet       = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	clickFlushInterval = 10 * time.Minute
 	clickDirtySetKey   = "link:clicks:dirty"
+	guestLinkTTL       = 24 * time.Hour
+	guestDailyLimit    = 5
 )
 
 var cleanupPendingClicksScript = redis.NewScript(`
@@ -70,6 +75,18 @@ func linkRedirectCacheKey(slug string) string {
 // linkClickCountKey stores pending clicks that have not been flushed to PostgreSQL yet.
 func linkClickCountKey(slug string) string {
 	return "link:clicks:" + slug
+}
+
+func guestLinkKey(slug string) string {
+	return "guest:link:" + slug
+}
+
+func guestClickKey(slug string) string {
+	return "guest:clicks:" + slug
+}
+
+func guestLimitKey(clientID string) string {
+	return "guest:limit:" + clientID
 }
 
 type LinkRepository interface {
@@ -289,6 +306,147 @@ func isDuplicateSlugError(err error) bool {
 		strings.Contains(lowerErr, "23505")
 }
 
+func (c *LinkService) isSlugAvailable(ctx context.Context, slug string) (bool, error) {
+	if slug == "" {
+		return false, nil
+	}
+
+	if c.rdb != nil {
+		exists, err := c.rdb.Exists(ctx, guestLinkKey(slug)).Result()
+		if err != nil {
+			return false, err
+		}
+		if exists > 0 {
+			return false, nil
+		}
+	}
+
+	_, err := c.repo.GetOriginLinkBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, nil
+		}
+
+		return false, err
+	}
+
+	return false, nil
+}
+
+func (c *LinkService) consumeGuestQuota(ctx context.Context, clientID string) error {
+	if c.rdb == nil {
+		return ErrGuestStorageUnavailable
+	}
+
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		clientID = "unknown"
+	}
+
+	key := guestLimitKey(clientID)
+	count, err := c.rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+
+	if count == 1 {
+		_ = c.rdb.Expire(ctx, key, guestLinkTTL).Err()
+	}
+
+	if count > guestDailyLimit {
+		return ErrGuestLimitExceeded
+	}
+
+	return nil
+}
+
+func (c *LinkService) storeGuestLink(ctx context.Context, slug, originLink string) (bool, error) {
+	if c.rdb == nil {
+		return false, ErrGuestStorageUnavailable
+	}
+
+	payload, err := json.Marshal(originLink)
+	if err != nil {
+		return false, err
+	}
+
+	return c.rdb.SetNX(ctx, guestLinkKey(slug), payload, guestLinkTTL).Result()
+}
+
+func (c *LinkService) CreateGuestSlug(ctx context.Context, clientID string, link dto.Link, shortLinkBase string) (dto.LinkResponse, error) {
+	if c.rdb == nil {
+		return dto.LinkResponse{}, ErrGuestStorageUnavailable
+	}
+
+	originLink := strings.TrimSpace(link.OriginLink)
+	if err := validateOriginLink(originLink); err != nil {
+		return dto.LinkResponse{}, err
+	}
+
+	customSlug := normalizeSlug(link.Slug)
+	createdAt := time.Now().UTC()
+	expiresAt := createdAt.Add(guestLinkTTL)
+
+	if customSlug != "" {
+		if err := validateSlug(customSlug); err != nil {
+			return dto.LinkResponse{}, err
+		}
+
+		available, err := c.isSlugAvailable(ctx, customSlug)
+		if err != nil {
+			return dto.LinkResponse{}, err
+		}
+		if !available {
+			return dto.LinkResponse{}, ErrSlugAlreadyExists
+		}
+
+		if err := c.consumeGuestQuota(ctx, clientID); err != nil {
+			return dto.LinkResponse{}, err
+		}
+
+		stored, err := c.storeGuestLink(ctx, customSlug, originLink)
+		if err != nil {
+			return dto.LinkResponse{}, err
+		}
+		if !stored {
+			return dto.LinkResponse{}, ErrSlugAlreadyExists
+		}
+
+		return toGuestLinkResponse(originLink, customSlug, shortLinkBase, createdAt, expiresAt), nil
+	}
+
+	if err := c.consumeGuestQuota(ctx, clientID); err != nil {
+		return dto.LinkResponse{}, err
+	}
+
+	for i := 0; i < maxSlugRetries; i++ {
+		slug, err := randomSlug(autoSlugLength)
+		if err != nil {
+			return dto.LinkResponse{}, err
+		}
+
+		available, err := c.isSlugAvailable(ctx, slug)
+		if err != nil {
+			return dto.LinkResponse{}, err
+		}
+		if !available {
+			continue
+		}
+
+		stored, err := c.storeGuestLink(ctx, slug, originLink)
+		if err != nil {
+			return dto.LinkResponse{}, err
+		}
+		if !stored {
+			continue
+		}
+
+		return toGuestLinkResponse(originLink, slug, shortLinkBase, createdAt, expiresAt), nil
+	}
+
+	return dto.LinkResponse{}, ErrSlugAlreadyExists
+}
+
 func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto.Link, shortLinkBase string) (dto.LinkResponse, error) {
 	originLink := strings.TrimSpace(link.OriginLink)
 	if err := validateOriginLink(originLink); err != nil {
@@ -299,6 +457,16 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 	if customSlug != "" {
 		if err := validateSlug(customSlug); err != nil {
 			return dto.LinkResponse{}, err
+		}
+
+		if c.rdb != nil {
+			exists, err := c.rdb.Exists(ctx, guestLinkKey(customSlug)).Result()
+			if err != nil {
+				return dto.LinkResponse{}, err
+			}
+			if exists > 0 {
+				return dto.LinkResponse{}, ErrSlugAlreadyExists
+			}
 		}
 
 		created, err := c.repo.CreateSlug(ctx, userID, originLink, customSlug)
@@ -320,6 +488,16 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 		slug, err := randomSlug(autoSlugLength)
 		if err != nil {
 			return dto.LinkResponse{}, err
+		}
+
+		if c.rdb != nil {
+			exists, err := c.rdb.Exists(ctx, guestLinkKey(slug)).Result()
+			if err != nil {
+				return dto.LinkResponse{}, err
+			}
+			if exists > 0 {
+				continue
+			}
 		}
 
 		created, err := c.repo.CreateSlug(ctx, userID, originLink, slug)
@@ -429,6 +607,24 @@ func (c *LinkService) DeleteLink(ctx context.Context, userID uuid.UUID, rawLinkI
 	return nil
 }
 
+func (c *LinkService) trackGuestClick(ctx context.Context, slug string) {
+	if c.rdb == nil || slug == "" {
+		return
+	}
+
+	linkKey := guestLinkKey(slug)
+	clickKey := guestClickKey(slug)
+	ttl, err := c.rdb.TTL(ctx, linkKey).Result()
+	if err != nil || ttl <= 0 {
+		return
+	}
+
+	pipe := c.rdb.Pipeline()
+	pipe.Incr(ctx, clickKey)
+	pipe.Expire(ctx, clickKey, ttl)
+	_, _ = pipe.Exec(ctx)
+}
+
 func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
@@ -436,8 +632,15 @@ func (c *LinkService) RedirectBySlug(ctx context.Context, slug string) (string, 
 	}
 
 	if c.rdb != nil {
+		var guestOriginLink string
+		err := cache.GetFromCache(ctx, c.rdb, guestLinkKey(slug), &guestOriginLink)
+		if err == nil && strings.TrimSpace(guestOriginLink) != "" {
+			c.trackGuestClick(ctx, slug)
+			return guestOriginLink, nil
+		}
+
 		var cachedOriginLink string
-		err := cache.GetFromCache(ctx, c.rdb, linkRedirectCacheKey(slug), &cachedOriginLink)
+		err = cache.GetFromCache(ctx, c.rdb, linkRedirectCacheKey(slug), &cachedOriginLink)
 		if err == nil && strings.TrimSpace(cachedOriginLink) != "" {
 			c.trackClick(ctx, slug)
 			return cachedOriginLink, nil
@@ -526,6 +729,21 @@ func toLinkResponse(link model.Link, shortLinkBase string, clicks int) dto.LinkR
 		Slug:       link.Slug,
 		ShortURL:   base + "/" + link.Slug,
 		Clicks:     clicks,
+		Temporary:  false,
 		CreatedAt:  link.CreatedAt,
+	}
+}
+
+func toGuestLinkResponse(originLink, slug, shortLinkBase string, createdAt, expiresAt time.Time) dto.LinkResponse {
+	base := strings.TrimRight(shortLinkBase, "/")
+
+	return dto.LinkResponse{
+		OriginLink: originLink,
+		Slug:       slug,
+		ShortURL:   base + "/" + slug,
+		Clicks:     0,
+		Temporary:  true,
+		CreatedAt:  createdAt,
+		ExpiresAt:  &expiresAt,
 	}
 }

@@ -22,6 +22,21 @@ func NewLinkController(cliqService *service.LinkService) *LinkController {
 	return &LinkController{LinkService: cliqService}
 }
 
+func clientIdentifier(ctx *gin.Context) string {
+	if forwardedFor := strings.TrimSpace(ctx.GetHeader("X-Forwarded-For")); forwardedFor != "" {
+		parts := strings.Split(forwardedFor, ",")
+		if firstIP := strings.TrimSpace(parts[0]); firstIP != "" {
+			return firstIP
+		}
+	}
+
+	if realIP := strings.TrimSpace(ctx.GetHeader("X-Real-IP")); realIP != "" {
+		return realIP
+	}
+
+	return ctx.ClientIP()
+}
+
 func shortLinkBase(ctx *gin.Context) string {
 	if value := strings.TrimSpace(os.Getenv("SHORT_LINK_BASE_URL")); value != "" {
 		return strings.TrimRight(value, "/")
@@ -96,6 +111,51 @@ func (c *LinkController) CreateSlug(ctx *gin.Context) {
 		http.StatusCreated,
 		dto.NewSuccess("Short link created successfully", link),
 	)
+}
+
+// CreateGuestSlug godoc
+// @Summary      Create temporary guest short link
+// @Description  Creates a Redis-only temporary short link without login. Guest clients are limited to 5 links per 24 hours. Links expire automatically after 24 hours and are not stored in PostgreSQL.
+// @Tags         Links
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dto.Link      true  "Temporary short link payload"
+// @Success      201   {object}  dto.Response  "Temporary short link created successfully"
+// @Failure      400   {object}  dto.Response  "Invalid origin link, slug, or reserved slug"
+// @Failure      409   {object}  dto.Response  "Slug already exists"
+// @Failure      429   {object}  dto.Response  "Guest daily limit reached"
+// @Failure      503   {object}  dto.Response  "Redis unavailable"
+// @Router       /link/guest [post]
+func (c *LinkController) CreateGuestSlug(ctx *gin.Context) {
+	var body dto.Link
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		log.Printf("[LinkController.CreateGuestSlug] bind error: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
+		return
+	}
+
+	link, err := c.LinkService.CreateGuestSlug(ctx.Request.Context(), clientIdentifier(ctx), body, shortLinkBase(ctx))
+	if err != nil {
+		log.Printf("[LinkController.CreateGuestSlug] service error: %v\n", err)
+
+		switch {
+		case errors.Is(err, service.ErrInvalidOriginLink),
+			errors.Is(err, service.ErrInvalidSlug),
+			errors.Is(err, service.ErrReservedSlug):
+			ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
+		case errors.Is(err, service.ErrSlugAlreadyExists):
+			ctx.JSON(http.StatusConflict, dto.NewError("Slug already exists", err))
+		case errors.Is(err, service.ErrGuestLimitExceeded):
+			ctx.JSON(http.StatusTooManyRequests, dto.NewError("Guest daily limit reached", err))
+		case errors.Is(err, service.ErrGuestStorageUnavailable):
+			ctx.JSON(http.StatusServiceUnavailable, dto.NewError("Temporary links unavailable", err))
+		default:
+			ctx.JSON(http.StatusInternalServerError, dto.NewError("Create temporary slug failed", err))
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, dto.NewSuccess("Temporary short link created successfully", link))
 }
 
 // GetDashboard godoc

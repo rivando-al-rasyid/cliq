@@ -18,11 +18,12 @@ func LinkRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	linkServ := service.NewLinkService(linkRepo, rdb)
 	linkServ.StartClickFlushWorker(context.Background(), 10*time.Minute)
 	linkCont := controller.NewLinkController(linkServ)
+	router.POST("/link/guest", linkCont.CreateGuestSlug)
 
-	cliq := router.Group("/link", middleware.AuthRequired(db))
-	cliq.POST("/create", linkCont.CreateSlug)
-	cliq.GET("/dashboard", linkCont.GetDashboard)
-	cliq.DELETE("/:id", linkCont.DeleteLink)
+	link := router.Group("/link", middleware.AuthRequired(db))
+	link.POST("/create", linkCont.CreateSlug)
+	link.GET("/dashboard", linkCont.GetDashboard)
+	link.DELETE("/:id", linkCont.DeleteLink)
 
 	// Keep this at the end so system routes like /auth, /profile, /link, and
 	router.GET("/:slug", linkCont.RedirectBySlug)
