@@ -55,6 +55,106 @@ func shortLinkBase(ctx *gin.Context) string {
 	return scheme + "://" + host
 }
 
+// GetLink godoc
+// @Summary      Get short link detail
+// @Description  Returns one active short link owned by the authenticated user.
+// @Tags         Links
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string        true  "Link ID"
+// @Success      200  {object}  dto.Response  "Link successfully retrieved"
+// @Failure      400  {object}  dto.Response  "Invalid link id"
+// @Failure      401  {object}  dto.Response  "Unauthorized"
+// @Failure      404  {object}  dto.Response  "Link not found"
+// @Failure      500  {object}  dto.Response  "Internal server error"
+// @Router       /link/detail/{id} [get]
+func (c *LinkController) GetLink(ctx *gin.Context) {
+	userID, ok := pkg.CurrentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, dto.NewError("Unauthorized", errors.New("missing or invalid user context")))
+		return
+	}
+
+	link, err := c.LinkService.GetLink(ctx.Request.Context(), userID, ctx.Param("id"), shortLinkBase(ctx))
+	if err != nil {
+		log.Printf("[LinkController.GetLink] service error: %v\n", err)
+
+		switch {
+		case errors.Is(err, service.ErrInvalidLinkID):
+			ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid link id", err))
+		case errors.Is(err, service.ErrLinkNotFound):
+			ctx.JSON(http.StatusNotFound, dto.NewError("Link not found", err))
+		default:
+			ctx.JSON(http.StatusInternalServerError, dto.NewError("Get link failed", err))
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, dto.NewSuccess("Link successfully retrieved", link))
+}
+
+// UpdateLink godoc
+// @Summary      Update short link
+// @Description  Updates the destination URL and slug of a short link owned by the authenticated user.
+// @Tags         Links
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id    path      string    true  "Link ID"
+// @Param        body  body      dto.Link  true  "Updated short link payload"
+// @Success      200   {object}  dto.Response  "Short link updated successfully"
+// @Failure      400   {object}  dto.Response  "Invalid origin link, slug, or link id"
+// @Failure      401   {object}  dto.Response  "Unauthorized"
+// @Failure      404   {object}  dto.Response  "Link not found"
+// @Failure      409   {object}  dto.Response  "Slug already exists"
+// @Failure      500   {object}  dto.Response  "Internal server error"
+// @Router       /link/{id} [patch]
+func (c *LinkController) UpdateLink(ctx *gin.Context) {
+	userID, ok := pkg.CurrentUserID(ctx)
+	if !ok {
+		ctx.JSON(
+			http.StatusUnauthorized,
+			dto.NewError("Unauthorized", errors.New("missing or invalid user context")),
+		)
+		return
+	}
+
+	var body dto.Link
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		log.Printf("[LinkController.UpdateLink] bind error: %v\n", err)
+
+		ctx.JSON(
+			http.StatusBadRequest,
+			dto.NewError("Invalid request payload", err),
+		)
+		return
+	}
+
+	link, err := c.LinkService.UpdateLink(ctx.Request.Context(), userID, ctx.Param("id"), body, shortLinkBase(ctx))
+	if err != nil {
+		log.Printf("[LinkController.UpdateLink] service error: %v\n", err)
+
+		switch {
+		case errors.Is(err, service.ErrInvalidLinkID):
+			ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid link id", err))
+		case errors.Is(err, service.ErrInvalidOriginLink),
+			errors.Is(err, service.ErrInvalidSlug),
+			errors.Is(err, service.ErrReservedSlug):
+			ctx.JSON(http.StatusBadRequest, dto.NewError("Invalid request payload", err))
+		case errors.Is(err, service.ErrLinkNotFound):
+			ctx.JSON(http.StatusNotFound, dto.NewError("Link not found", err))
+		case errors.Is(err, service.ErrSlugAlreadyExists):
+			ctx.JSON(http.StatusConflict, dto.NewError("Slug already exists", err))
+		default:
+			ctx.JSON(http.StatusInternalServerError, dto.NewError("Update link failed", err))
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, dto.NewSuccess("Short link updated successfully", link))
+}
+
 // CreateSlug godoc
 // @Summary      Create short link
 // @Description  Creates a short link for the authenticated user. If the slug is empty, the service generates a random unique slug.

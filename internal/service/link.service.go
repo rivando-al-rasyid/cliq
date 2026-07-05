@@ -93,6 +93,8 @@ type LinkRepository interface {
 	CreateSlug(ctx context.Context, userID uuid.UUID, originLink string, slug string) (model.Link, error)
 	GetOriginLinkBySlug(ctx context.Context, slug string) (string, error)
 	GetSlugByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (string, error)
+	GetLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (model.Link, error)
+	UpdateLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID, originLink string, slug string) (model.Link, error)
 	ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error)
 	ListActiveSlugsByUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 	GetTotalClicksByUser(ctx context.Context, userID uuid.UUID) (int, error)
@@ -516,6 +518,95 @@ func (c *LinkService) CreateSlug(ctx context.Context, userID uuid.UUID, link dto
 	}
 
 	return dto.LinkResponse{}, ErrSlugAlreadyExists
+}
+func (c *LinkService) GetLink(ctx context.Context, userID uuid.UUID, rawLinkID string, shortLinkBase string) (dto.LinkResponse, error) {
+	linkID, err := uuid.Parse(strings.TrimSpace(rawLinkID))
+	if err != nil {
+		return dto.LinkResponse{}, ErrInvalidLinkID
+	}
+
+	link, err := c.repo.GetLinkByID(ctx, userID, linkID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return dto.LinkResponse{}, ErrLinkNotFound
+		}
+
+		return dto.LinkResponse{}, err
+	}
+
+	pendingClicks := c.getPendingClickCounts(ctx, []string{link.Slug})
+	return toLinkResponse(link, shortLinkBase, link.Clicks+pendingClicks[link.Slug]), nil
+}
+
+func (c *LinkService) UpdateLink(ctx context.Context, userID uuid.UUID, rawLinkID string, link dto.Link, shortLinkBase string) (dto.LinkResponse, error) {
+	linkID, err := uuid.Parse(strings.TrimSpace(rawLinkID))
+	if err != nil {
+		return dto.LinkResponse{}, ErrInvalidLinkID
+	}
+
+	originLink := strings.TrimSpace(link.OriginLink)
+	if err := validateOriginLink(originLink); err != nil {
+		return dto.LinkResponse{}, err
+	}
+
+	current, err := c.repo.GetLinkByID(ctx, userID, linkID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return dto.LinkResponse{}, ErrLinkNotFound
+		}
+
+		return dto.LinkResponse{}, err
+	}
+
+	newSlug := normalizeSlug(link.Slug)
+	if newSlug == "" {
+		newSlug = current.Slug
+	}
+
+	if err := validateSlug(newSlug); err != nil {
+		return dto.LinkResponse{}, err
+	}
+
+	if newSlug != current.Slug && c.rdb != nil {
+		exists, err := c.rdb.Exists(ctx, guestLinkKey(newSlug)).Result()
+		if err != nil {
+			return dto.LinkResponse{}, err
+		}
+		if exists > 0 {
+			return dto.LinkResponse{}, ErrSlugAlreadyExists
+		}
+	}
+
+	// Stop serving the previous cached redirect before the update is persisted.
+	c.deleteRedirectCache(ctx, current.Slug)
+
+	// Keep analytics accurate before the slug changes. Pending clicks are keyed by slug in Redis.
+	if err := c.FlushPendingClicksBySlug(ctx, current.Slug); err != nil {
+		return dto.LinkResponse{}, err
+	}
+
+	updated, err := c.repo.UpdateLinkByID(ctx, userID, linkID, originLink, newSlug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return dto.LinkResponse{}, ErrLinkNotFound
+		}
+		if isDuplicateSlugError(err) {
+			return dto.LinkResponse{}, ErrSlugAlreadyExists
+		}
+
+		return dto.LinkResponse{}, err
+	}
+
+	// Make redirects immediately reflect the edited destination/slug.
+	c.deleteLinkCaches(ctx, current.Slug)
+	if updated.Slug != current.Slug {
+		c.deleteLinkCaches(ctx, updated.Slug)
+	} else {
+		c.deleteRedirectCache(ctx, updated.Slug)
+	}
+	c.cacheOriginLink(ctx, updated.Slug, updated.OriginLink)
+
+	return toLinkResponse(updated, shortLinkBase, updated.Clicks), nil
 }
 
 func (c *LinkService) GetDashboard(ctx context.Context, userID uuid.UUID, page, limit int, shortLinkBase string) (dto.DashboardResponse, error) {

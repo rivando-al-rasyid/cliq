@@ -98,6 +98,68 @@ func (c *LinkRepo) GetSlugByID(ctx context.Context, userID uuid.UUID, linkID uui
 	return slug, nil
 }
 
+func (c *LinkRepo) GetLinkByID(ctx context.Context, userID uuid.UUID, linkID uuid.UUID) (model.Link, error) {
+	var link model.Link
+
+	err := c.db.QueryRow(ctx,
+		`
+		SELECT id, user_id, origin_link, slug, clicks, created_at
+		FROM links
+		WHERE id = $1
+		  AND user_id = $2
+		  AND is_deleted = false
+		LIMIT 1
+		`,
+		linkID,
+		userID,
+	).Scan(&link.ID, &link.UserID, &link.OriginLink, &link.Slug, &link.Clicks, &link.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Link{}, pgx.ErrNoRows
+		}
+
+		return model.Link{}, fmt.Errorf("get link by id: %w", err)
+	}
+
+	return link, nil
+}
+
+func (c *LinkRepo) UpdateLinkByID(
+	ctx context.Context,
+	userID uuid.UUID,
+	linkID uuid.UUID,
+	originLink string,
+	slug string,
+) (model.Link, error) {
+	var link model.Link
+
+	err := c.db.QueryRow(ctx,
+		`
+		UPDATE links
+		SET origin_link = $3,
+		    slug = $4,
+		    updated_at = now()
+		WHERE id = $1
+		  AND user_id = $2
+		  AND is_deleted = false
+		RETURNING id, user_id, origin_link, slug, clicks, created_at
+		`,
+		linkID,
+		userID,
+		originLink,
+		slug,
+	).Scan(&link.ID, &link.UserID, &link.OriginLink, &link.Slug, &link.Clicks, &link.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Link{}, pgx.ErrNoRows
+		}
+
+		return model.Link{}, fmt.Errorf("update link by id: %w", err)
+	}
+
+	return link, nil
+}
+
 func (c *LinkRepo) ListLinksByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]model.Link, int, error) {
 	var total int
 	if err := c.db.QueryRow(ctx,

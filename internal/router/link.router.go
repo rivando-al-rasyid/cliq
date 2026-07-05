@@ -24,6 +24,10 @@ func LinkRouter(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	link := router.Group("/link", middleware.AuthRequired(db))
 	link.POST("/create", linkCont.CreateSlug)
 	link.GET("/dashboard", linkCont.GetDashboard)
+	link.GET("/detail/:id", linkCont.GetLink)
+	link.POST("/edit/:id", linkCont.UpdateLink)
+	link.PATCH("/:id", linkCont.UpdateLink)
+	link.PUT("/:id", linkCont.UpdateLink)
 	link.DELETE("/:id", linkCont.DeleteLink)
 
 	// Keep this at the end so system routes like /auth, /profile, /link, and
